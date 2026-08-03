@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env.local
+*.log
+.DS_Store
+service-account*.json
+
+# Serwist generated files
+public/sw.js
+public/sw.js.map
+public/swe-worker-*
