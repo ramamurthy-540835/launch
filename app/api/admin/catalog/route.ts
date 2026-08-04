@@ -1,23 +1,13 @@
-import { BigQuery } from "@google-cloud/bigquery";
 import { FieldValue } from "@google-cloud/firestore";
 import { NextResponse } from "next/server";
 import { ParentAuthError, verifyStaffRole } from "@/lib/firebase-admin";
 import { firestoreClient } from "@/lib/firestore";
 import { writeAuditLog } from "@/lib/hardening";
+import { MARKET_PRICE } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
-const projectId = process.env.GCP_PROJECT_ID;
-const datasetId = process.env.BIGQUERY_DATASET || "school_lunch";
 
-function catalogBigQuery() {
-  if (!projectId || !/^[A-Za-z0-9_-]+$/.test(projectId) || !/^[A-Za-z0-9_-]+$/.test(datasetId)) throw new Error("BigQuery catalogue is not configured.");
-  return new BigQuery({ projectId });
-}
-
-function catalogTable(name: "schools" | "menu_items" | "grade_nutrition_plans") {
-  return "`" + projectId + "." + datasetId + "." + name + "`";
-}
 
 function fail(error: unknown) {
   return NextResponse.json(
@@ -32,7 +22,6 @@ export async function PUT(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const entity = body.entity;
     const firestore = firestoreClient();
-    const bigquery = catalogBigQuery();
     const audit = { updated_at: FieldValue.serverTimestamp(), updated_by: staff.uid };
 
     if (entity === "school") {
@@ -41,25 +30,25 @@ export async function PUT(request: Request) {
       const cityId = String(body.cityId || "");
       const kitchenId = String(body.kitchenId || "").trim();
       const area = String(body.area || "").trim();
+      const priceTier = body.priceTier === "sponsored" ? "sponsored" : "market";
       if (!/^[a-z0-9-]{3,60}$/.test(id) || name.length < 3 || !/^[a-z0-9-]{3,40}$/.test(cityId) || !/^[a-z0-9-]{3,50}$/.test(kitchenId) || !area) {
         return NextResponse.json({ error: "Enter valid school, city, kitchen and area values." }, { status: 400 });
       }
-      await bigquery.query({ query: "MERGE " + catalogTable("schools") + " T USING (SELECT @id AS school_id, @cityId AS city_id, @kitchenId AS kitchen_id, @name AS school_name, @area AS area, @active AS active) S ON T.school_id=S.school_id WHEN MATCHED THEN UPDATE SET city_id=S.city_id, kitchen_id=S.kitchen_id, school_name=S.school_name, area=S.area, active=S.active, updated_at=CURRENT_TIMESTAMP() WHEN NOT MATCHED THEN INSERT (school_id,city_id,kitchen_id,school_name,area,active,updated_at) VALUES (S.school_id,S.city_id,S.kitchen_id,S.school_name,S.area,S.active,CURRENT_TIMESTAMP())", params: { id, cityId, kitchenId, name, area, active: body.active !== false }, location: "asia-south1" });
-      await writeAuditLog(staff.uid, "school.upsert", "school", id, { cityId, kitchenId, active: body.active !== false });
+      await firestore.collection("schools").doc(id).set({ school_name: name, city_id: cityId, kitchen_id: kitchenId, area, price_tier: priceTier, active: body.active !== false, ...audit }, { merge: true });
+      await writeAuditLog(staff.uid, "school.upsert", "school", id, { cityId, kitchenId, priceTier, active: body.active !== false });
       return NextResponse.json({ id, updated: true });
     }
 
     if (entity === "meal") {
       const id = String(body.mealId || "").trim();
       const serviceDate = String(body.serviceDate || "");
-      const price = Number(body.price);
       const name = String(body.mealName || "").trim();
-      if (!/^[a-z0-9-]{3,80}$/.test(id) || !/^\d{4}-\d{2}-\d{2}$/.test(serviceDate) || name.length < 3 || !Number.isFinite(price) || price < 1) {
-        return NextResponse.json({ error: "Enter a valid meal ID, service date, name and price." }, { status: 400 });
+      if (!/^[a-z0-9-]{3,80}$/.test(id) || !/^\d{4}-\d{2}-\d{2}$/.test(serviceDate) || name.length < 3) {
+        return NextResponse.json({ error: "Enter a valid meal ID, service date and name." }, { status: 400 });
       }
       const date = new Date(`${serviceDate}T00:00:00+05:30`);
-      await bigquery.query({ query: "MERGE " + catalogTable("menu_items") + " T USING (SELECT @id AS meal_id, DATE(@serviceDate) AS service_date) S ON T.meal_id=S.meal_id AND T.service_date=S.service_date WHEN MATCHED THEN UPDATE SET day_label=@day, short_date=@shortDate, meal_name=@name, description=@description, tags=[\"Vegetarian\"], protein_g=@protein, calories=@calories, price_inr=@price, rating=NUMERIC \"0\", color=@color, emoji=\"🍱\", nutrition_status=\"provisional\", is_available=@active, updated_at=CURRENT_TIMESTAMP() WHEN NOT MATCHED THEN INSERT (meal_id,service_date,day_label,short_date,meal_name,description,tags,protein_g,calories,price_inr,rating,color,emoji,nutrition_status,is_available,updated_at) VALUES (@id,DATE(@serviceDate),@day,@shortDate,@name,@description,[\"Vegetarian\"],@protein,@calories,@price,NUMERIC \"0\",@color,\"🍱\",\"provisional\",@active,CURRENT_TIMESTAMP())", params: { id, serviceDate, day: new Intl.DateTimeFormat("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" }).format(date), shortDate: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }).format(date), name, description: String(body.description || ""), protein: Number(body.protein || 0), calories: Number(body.calories || 0), price, color: String(body.color || "green"), active: body.active !== false }, location: "asia-south1" });
-      await writeAuditLog(staff.uid, "meal.upsert", "meal", id, { serviceDate, price, active: body.active !== false });
+      await firestore.collection("meal_packages").doc(id).set({ service_date: serviceDate, day: new Intl.DateTimeFormat("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" }).format(date), short_date: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }).format(date), meal_name: name, description: String(body.description || ""), tags: ["Vegetarian"], protein_g: Number(body.protein || 0), calories: Number(body.calories || 0), price_inr: MARKET_PRICE, rating: Number(body.rating || 0), color: String(body.color || "green"), emoji: "🍱", nutrition_status: "provisional", is_available: body.active !== false, ...audit }, { merge: true });
+      await writeAuditLog(staff.uid, "meal.upsert", "meal", id, { serviceDate, price: MARKET_PRICE, active: body.active !== false });
       return NextResponse.json({ id, updated: true });
     }
 
@@ -82,7 +71,7 @@ export async function PUT(request: Request) {
       const targetProteinG = Number(body.targetProteinG);
       const sortOrder = Number(body.sortOrder);
       if (!/^[0-9-]{3,10}$/.test(gradeBand) || !label || !Number.isInteger(targetCalories) || targetCalories < 1 || !Number.isFinite(targetProteinG) || targetProteinG < 1 || !Number.isInteger(sortOrder)) return NextResponse.json({ error: "Enter a valid grade nutrition plan." }, { status: 400 });
-      await bigquery.query({ query: "MERGE " + catalogTable("grade_nutrition_plans") + " T USING (SELECT @gradeBand AS grade_band) S ON T.grade_band=S.grade_band WHEN MATCHED THEN UPDATE SET label=@label, target_calories=@targetCalories, target_protein_g=@targetProteinG, nutrition_status=\"provisional\", sort_order=@sortOrder, active=@active, updated_at=CURRENT_TIMESTAMP() WHEN NOT MATCHED THEN INSERT (grade_band,label,target_calories,target_protein_g,nutrition_status,sort_order,active,updated_at) VALUES (@gradeBand,@label,@targetCalories,@targetProteinG,\"provisional\",@sortOrder,@active,CURRENT_TIMESTAMP())", params: { gradeBand, label, targetCalories, targetProteinG, sortOrder, active: body.active !== false }, location: "asia-south1" });
+      await firestore.collection("grade_nutrition_plans").doc(gradeBand).set({ label, target_calories: targetCalories, target_protein_g: targetProteinG, sort_order: sortOrder, nutrition_status: "provisional", active: body.active !== false, ...audit }, { merge: true });
       await writeAuditLog(staff.uid, "grade.upsert", "grade_nutrition_plan", gradeBand, { targetCalories, targetProteinG, active: body.active !== false });
       return NextResponse.json({ id: gradeBand, updated: true });
     }

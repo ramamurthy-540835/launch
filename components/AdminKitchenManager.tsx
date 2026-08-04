@@ -10,6 +10,8 @@ type Kitchen = {
   kitchen_name: string;
   daily_capacity: number;
   order_cutoff: string;
+  direct_cost_per_meal?: number;
+  monthly_fixed_cost?: number;
   active: boolean;
 };
 type PaymentOrder = { id: string; status: string; totalInr: number; razorpayOrderId: string | null; paymentId: string | null; refundId: string | null; analyticsStatus: string };
@@ -71,6 +73,8 @@ export default function AdminKitchenManager() {
         cityId: form.get("cityId"),
         dailyCapacity: form.get("dailyCapacity"),
         orderCutoff: form.get("orderCutoff"),
+        directCostPerMeal: form.get("directCostPerMeal"),
+        monthlyFixedCost: form.get("monthlyFixedCost"),
         active: form.get("active") === "on",
       }),
     });
@@ -106,10 +110,12 @@ export default function AdminKitchenManager() {
         <label>City<select name="cityId"><option value="chennai">Chennai</option><option value="madurai">Madurai</option><option value="trichy">Trichy</option><option value="coimbatore">Coimbatore</option></select></label>
         <label>Daily capacity<input name="dailyCapacity" required type="number" min="1" max="100000" /></label>
         <label>Order cutoff (IST)<input name="orderCutoff" required type="time" defaultValue="09:00" /></label>
+        <label>Direct food cost per meal (₹)<input name="directCostPerMeal" required type="number" min="0" step="0.01" defaultValue="27" /></label>
+        <label>Monthly fixed cost (₹)<input name="monthlyFixedCost" required type="number" min="0" step="1" defaultValue="124000" /></label>
         <label><input name="active" type="checkbox" defaultChecked /> Active</label>
         <button className="checkout-button">Save kitchen</button>
       </form>
-      <div className="cart-list">{kitchens.map((kitchen) => <article className="cart-row" key={kitchen.id}><div><b>{kitchen.kitchen_name}</b><small>{kitchen.city_id} · {kitchen.daily_capacity} meals · cutoff {kitchen.order_cutoff} IST · {kitchen.active ? "active" : "inactive"}</small></div></article>)}</div>
+      <div className="cart-list">{kitchens.map((kitchen) => <article className="cart-row" key={kitchen.id}><div><b>{kitchen.kitchen_name}</b><small>{kitchen.city_id} · {kitchen.daily_capacity} meals · cutoff {kitchen.order_cutoff} IST · food ₹{kitchen.direct_cost_per_meal ?? 27} · fixed ₹{kitchen.monthly_fixed_cost ?? 124000} · {kitchen.active ? "active" : "inactive"}</small></div></article>)}</div>
       <div className="section-heading"><div><span className="kicker">SERVICEABILITY</span><h2>Schools</h2></div></div>
       <form className="checkout-modal" onSubmit={(event) => void saveCatalog(event, "school")}>
         <label>School ID<input name="schoolId" required pattern="[a-z0-9-]{3,60}" /></label>
@@ -117,6 +123,7 @@ export default function AdminKitchenManager() {
         <label>Area<input name="area" required /></label>
         <label>City<select name="cityId"><option value="chennai">Chennai</option><option value="madurai">Madurai</option><option value="trichy">Trichy</option><option value="coimbatore">Coimbatore</option></select></label>
         <label>Kitchen ID<input name="kitchenId" required /></label>
+        <label>Price tier<select name="priceTier"><option value="market">Market · ₹49</option><option value="sponsored">Sponsored · ₹39</option></select></label>
         <button className="checkout-button">Save school</button>
       </form>
       <div className="section-heading"><div><span className="kicker">MENU</span><h2>Meal packages</h2></div></div>
@@ -125,7 +132,6 @@ export default function AdminKitchenManager() {
         <label>Service date<input name="serviceDate" required type="date" /></label>
         <label>Meal name<input name="mealName" required /></label>
         <label>Description<input name="description" required /></label>
-        <label>Price (₹)<input name="price" required type="number" min="1" step="0.01" defaultValue="39" /></label>
         <label>Protein (g)<input name="protein" type="number" min="0" /></label>
         <label>Calories<input name="calories" type="number" min="0" /></label>
         <button className="checkout-button">Save meal</button>

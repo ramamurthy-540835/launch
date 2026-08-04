@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCatalog } from "@/lib/catalog";
-import { isGcpConfigured, persistOrder, type OrderRecord } from "@/lib/gcp";
-import { attachPaymentOrder, getOwnedStudent, isFirestoreConfigured, markOrderSynced, OrderConflictError, reserveOrder } from "@/lib/firestore";
+import { isGcpConfigured, persistOrder, type FreeMealItem, type OrderRecord } from "@/lib/gcp";
+import { attachPaymentOrder, FreeMealCapError, getOwnedStudent, isFirestoreConfigured, markOrderSynced, OrderConflictError, reserveOrder } from "@/lib/firestore";
 import { ParentAuthError, verifyParent } from "@/lib/firebase-admin";
 import { createPaymentOrder, isRazorpayConfigured, paymentCheckoutDetails } from "@/lib/razorpay";
 import { enforceRateLimit, RateLimitError } from "@/lib/hardening";
-import { logError, requestId } from "@/lib/logging";
+import { logError, logWarning, requestId } from "@/lib/logging";
+import { assertFreeMealOrderCaps, resolvePriceTier, schoolMealPrice, type FreeMealType } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ type IncomingOrder = {
   city?: unknown;
   gradeBand?: unknown;
   items?: unknown;
-  total?: unknown;
+  freeMeals?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -83,10 +84,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Each meal may appear only once per order." }, { status: 400 });
     }
 
+    const unitPrice = schoolMealPrice(school);
     const sanitizedItems = body.items.map((item) => {
       const candidate = item as { mealId: string; quantity: number };
       const meal = catalog.meals.find((entry) => entry.id === candidate.mealId)!;
-      return { meal_id: meal.id, meal_name: meal.name, service_date: meal.serviceDate, quantity: Number(candidate.quantity), unit_price_inr: meal.price };
+      return { meal_id: meal.id, meal_name: meal.name, service_date: meal.serviceDate, quantity: Number(candidate.quantity), unit_price_inr: unitPrice };
+    });
+    const freeMealInput = Array.isArray(body.freeMeals) ? body.freeMeals : [];
+    const hasInvalidFreeMeal = freeMealInput.some((item) => {
+      const candidate = item as { mealId?: unknown; type?: unknown; quantity?: unknown };
+      const quantity = Number(candidate.quantity);
+      return !catalog.meals.some((meal) => meal.id === candidate.mealId) || !["senior", "parent"].includes(String(candidate.type)) || !Number.isInteger(quantity) || quantity < 1;
+    });
+    if (hasInvalidFreeMeal) return NextResponse.json({ error: "Choose valid free-meal types and quantities." }, { status: 400 });
+    try {
+      assertFreeMealOrderCaps(freeMealInput.map((item) => ({ type: (item as { type: FreeMealType }).type, quantity: Number((item as { quantity: number }).quantity) })));
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid free-meal quantities." }, { status: 400 });
+    }
+    const freeMeals: FreeMealItem[] = freeMealInput.map((item) => {
+      const candidate = item as { mealId: string; type: FreeMealType; quantity: number };
+      const meal = catalog.meals.find((entry) => entry.id === candidate.mealId)!;
+      return { meal_id: meal.id, meal_name: meal.name, service_date: meal.serviceDate, free_meal_type: candidate.type, quantity: Number(candidate.quantity), subsidy_unit_inr: unitPrice };
     });
     const serverTotal = sanitizedItems.reduce((sum, item) => sum + item.quantity * item.unit_price_inr, 0);
     const orderId = `LB-${crypto.randomUUID()}`;
@@ -98,6 +117,7 @@ export async function POST(request: Request) {
       school_id: school.id,
       kitchen_id: school.kitchenId,
       payment_status: isRazorpayConfigured() ? "PENDING" : "NOT_REQUIRED",
+      price_tier: resolvePriceTier(school),
       created_at: new Date().toISOString(),
       student_name: studentName,
       school_name: (body.schoolName as string).trim(),
@@ -105,6 +125,7 @@ export async function POST(request: Request) {
       city: body.city as string,
       grade_band: body.gradeBand as string,
       items_json: JSON.stringify(sanitizedItems),
+      free_meals_json: JSON.stringify(freeMeals),
       total_inr: serverTotal,
       status: isRazorpayConfigured() ? "PENDING_PAYMENT" : "CONFIRMED",
       receipt_uri: null,
@@ -115,7 +136,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ orderId, total: serverTotal, storage: stored.mode, configured: isGcpConfigured() }, { status: 201 });
     }
 
-    const reservations = sanitizedItems.map((item) => ({ serviceDate: item.service_date, meals: item.quantity }));
+    const reservationMap = new Map<string, { serviceDate: string; meals: number; freeMeals: number }>();
+    for (const item of sanitizedItems) {
+      const current = reservationMap.get(item.service_date) || { serviceDate: item.service_date, meals: 0, freeMeals: 0 };
+      current.meals += item.quantity;
+      reservationMap.set(item.service_date, current);
+    }
+    for (const item of freeMeals) {
+      const current = reservationMap.get(item.service_date) || { serviceDate: item.service_date, meals: 0, freeMeals: 0 };
+      current.meals += item.quantity;
+      current.freeMeals += item.quantity;
+      reservationMap.set(item.service_date, current);
+    }
+    const reservations = [...reservationMap.values()];
     const reserved = await reserveOrder(order, idempotencyKey!, school.id, school.kitchenId, reservations);
     const authoritativeOrder = reserved.order;
     let paymentOrder = null;
@@ -144,6 +177,7 @@ export async function POST(request: Request) {
       { status: reserved.created ? 201 : 200 },
     );
   } catch (error) {
+    if (error instanceof FreeMealCapError) logWarning("order.free_meal_cap_rejected", { correlationId, kitchenId: error.kitchenId, serviceDate: error.serviceDate });
     logError("order.create_failed", error, { correlationId });
     const status = error instanceof RateLimitError ? 429 : error instanceof OrderConflictError ? 409 : error instanceof ParentAuthError ? 401 : 500;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to place order.", correlationId }, { status, headers: { "X-Request-Id": correlationId } });

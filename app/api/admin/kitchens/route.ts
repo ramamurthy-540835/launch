@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ParentAuthError, verifyStaffRole } from "@/lib/firebase-admin";
 import { firestoreClient } from "@/lib/firestore";
 import { writeAuditLog } from "@/lib/hardening";
+import { DEFAULT_DIRECT_COST_PER_MEAL, DEFAULT_MONTHLY_FIXED_COST } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
@@ -32,9 +33,11 @@ export async function PUT(request: Request) {
     const cityId = typeof body.cityId === "string" ? body.cityId : "";
     const dailyCapacity = Number(body.dailyCapacity);
     const cutoff = typeof body.orderCutoff === "string" ? body.orderCutoff : "";
+    const directCostPerMeal = Number(body.directCostPerMeal ?? DEFAULT_DIRECT_COST_PER_MEAL);
+    const monthlyFixedCost = Number(body.monthlyFixedCost ?? DEFAULT_MONTHLY_FIXED_COST);
 
-    if (!/^[a-z0-9-]{3,50}$/.test(kitchenId) || kitchenName.length < 3 || !cities.has(cityId) || !Number.isInteger(dailyCapacity) || dailyCapacity < 1 || dailyCapacity > 100000 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff)) {
-      return NextResponse.json({ error: "Enter a valid kitchen, city, capacity and HH:mm cutoff." }, { status: 400 });
+    if (!/^[a-z0-9-]{3,50}$/.test(kitchenId) || kitchenName.length < 3 || !cities.has(cityId) || !Number.isInteger(dailyCapacity) || dailyCapacity < 1 || dailyCapacity > 100000 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff) || !Number.isFinite(directCostPerMeal) || directCostPerMeal < 0 || !Number.isFinite(monthlyFixedCost) || monthlyFixedCost < 0) {
+      return NextResponse.json({ error: "Enter a valid kitchen, city, capacity, cutoff and cost configuration." }, { status: 400 });
     }
 
     await firestoreClient().collection("kitchens").doc(kitchenId).set({
@@ -42,11 +45,13 @@ export async function PUT(request: Request) {
       kitchen_name: kitchenName,
       daily_capacity: dailyCapacity,
       order_cutoff: cutoff,
+      direct_cost_per_meal: directCostPerMeal,
+      monthly_fixed_cost: monthlyFixedCost,
       active: body.active !== false,
       updated_at: FieldValue.serverTimestamp(),
       updated_by: staff.uid,
     }, { merge: true });
-    await writeAuditLog(staff.uid, "kitchen.upsert", "kitchen", kitchenId, { cityId, dailyCapacity, cutoff, active: body.active !== false });
+    await writeAuditLog(staff.uid, "kitchen.upsert", "kitchen", kitchenId, { cityId, dailyCapacity, cutoff, directCostPerMeal, monthlyFixedCost, active: body.active !== false });
     return NextResponse.json({ id: kitchenId, updated: true });
   } catch (error) {
     return responseError(error);

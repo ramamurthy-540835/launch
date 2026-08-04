@@ -1,9 +1,11 @@
 import { Firestore, FieldValue, Timestamp } from "@google-cloud/firestore";
 import type { OrderRecord } from "@/lib/gcp";
+import { FREE_MEALS_DAILY_CAP, canReserveDailyFreeMeals } from "@/lib/pricing";
 
 export type CapacityReservation = {
   serviceDate: string;
   meals: number;
+  freeMeals: number;
 };
 
 type StoredOrder = OrderRecord & {
@@ -25,6 +27,13 @@ export class OrderConflictError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "OrderConflictError";
+  }
+}
+
+export class FreeMealCapError extends OrderConflictError {
+  constructor(public readonly kitchenId: string, public readonly serviceDate: string) {
+    super(`Today’s sponsored free-meal allocation is full for ${serviceDate}. Please choose another delivery date or contact the school coordinator.`);
+    this.name = "FreeMealCapError";
   }
 }
 
@@ -65,21 +74,16 @@ export async function reserveOrder(
       return { created: false, order: existingSnapshot.data() as StoredOrder };
     }
 
-    const capacityRefs = reservations.map(({ serviceDate }) =>
-      firestore.collection("kitchen_capacity_daily").doc(`${kitchenId}_${serviceDate}`),
-    );
-    const holidayRefs = reservations.map(({ serviceDate }) =>
-      firestore.collection("school_holidays").doc(`${schoolId}_${serviceDate}`),
-    );
+    const capacityRefs = reservations.map(({ serviceDate }) => firestore.collection("kitchen_capacity_daily").doc(kitchenId + "_" + serviceDate));
+    const holidayRefs = reservations.map(({ serviceDate }) => firestore.collection("school_holidays").doc(schoolId + "_" + serviceDate));
+    const freeMealCapRefs = reservations.map(({ serviceDate }) => firestore.collection("free_meal_cap_usage").doc(kitchenId + "_" + serviceDate));
     const kitchenRef = firestore.collection("kitchens").doc(kitchenId);
-    const operationalSnapshots = await Promise.all([
+    const [kitchenSnapshot, capacitySnapshots, holidaySnapshots, freeMealCapSnapshots] = await Promise.all([
       transaction.get(kitchenRef),
-      ...capacityRefs.map((ref) => transaction.get(ref)),
-      ...holidayRefs.map((ref) => transaction.get(ref)),
+      Promise.all(capacityRefs.map((ref) => transaction.get(ref))),
+      Promise.all(holidayRefs.map((ref) => transaction.get(ref))),
+      Promise.all(freeMealCapRefs.map((ref) => transaction.get(ref))),
     ]);
-    const kitchenSnapshot = operationalSnapshots[0];
-    const capacitySnapshots = operationalSnapshots.slice(1, 1 + capacityRefs.length);
-    const holidaySnapshots = operationalSnapshots.slice(1 + capacityRefs.length);
     if (kitchenSnapshot.exists && kitchenSnapshot.get("active") === false) {
       throw new OrderConflictError("The selected kitchen is not accepting orders.");
     }
@@ -101,6 +105,17 @@ export async function reserveOrder(
       if (!Number.isInteger(capacity) || capacity < 1 || confirmed + pending + reservation.meals > capacity) {
         throw new OrderConflictError(`Kitchen capacity is unavailable for ${reservation.serviceDate}.`);
       }
+      const freeCapSnapshot = freeMealCapSnapshots[index];
+      const freeMealsUsed = freeCapSnapshot.exists ? Number(freeCapSnapshot.get("reserved_meals") || 0) : 0;
+      if (!canReserveDailyFreeMeals(freeMealsUsed, reservation.freeMeals)) throw new FreeMealCapError(kitchenId, reservation.serviceDate);
+      if (reservation.freeMeals > 0) transaction.set(freeMealCapRefs[index], {
+        kitchen_id: kitchenId,
+        service_date: reservation.serviceDate,
+        reserved_meals: freeMealsUsed + reservation.freeMeals,
+        daily_cap: FREE_MEALS_DAILY_CAP,
+        remaining_meals: FREE_MEALS_DAILY_CAP - freeMealsUsed - reservation.freeMeals,
+        updated_at: FieldValue.serverTimestamp(),
+      }, { merge: true });
 
       transaction.set(capacityRefs[index], {
         service_date: reservation.serviceDate,
@@ -188,11 +203,20 @@ export async function expirePendingPayments(limit = 100) {
       if (orderSnapshot.get("status") !== "PENDING_PAYMENT") return false;
       const reservations = orderSnapshot.get("reservations") as CapacityReservation[];
       const kitchenId = String(orderSnapshot.get("kitchen_id"));
-      const refs = reservations.map(({ serviceDate }) => firestore.collection("kitchen_capacity_daily").doc(`${kitchenId}_${serviceDate}`));
-      const capacities = await Promise.all(refs.map((reference) => transaction.get(reference)));
+      const refs = reservations.map(({ serviceDate }) => firestore.collection("kitchen_capacity_daily").doc(kitchenId + "_" + serviceDate));
+      const freeRefs = reservations.map(({ serviceDate }) => firestore.collection("free_meal_cap_usage").doc(kitchenId + "_" + serviceDate));
+      const [capacities, freeCaps] = await Promise.all([
+        Promise.all(refs.map((reference) => transaction.get(reference))),
+        Promise.all(freeRefs.map((reference) => transaction.get(reference))),
+      ]);
       reservations.forEach((reservation, index) => {
         const pending = Number(capacities[index].get("pending_meals") || 0);
         transaction.update(refs[index], { pending_meals: Math.max(0, pending - reservation.meals), updated_at: FieldValue.serverTimestamp() });
+        const freeMeals = Number(reservation.freeMeals || 0);
+        if (freeMeals > 0 && freeCaps[index].exists) {
+          const next = Math.max(0, Number(freeCaps[index].get("reserved_meals") || 0) - freeMeals);
+          transaction.update(freeRefs[index], { reserved_meals: next, remaining_meals: FREE_MEALS_DAILY_CAP - next, updated_at: FieldValue.serverTimestamp() });
+        }
       });
       transaction.update(document.ref, { status: "PAYMENT_EXPIRED", expired_at: FieldValue.serverTimestamp() });
       return true;
@@ -214,15 +238,23 @@ export async function prepareFullRefund(orderId: string, idempotencyKey: string,
     if (order.get("status") !== "CONFIRMED" || !order.get("razorpay_payment_id")) throw new OrderConflictError("Only a captured confirmed order can be refunded.");
     const reservations = order.get("reservations") as CapacityReservation[];
     const kitchenId = String(order.get("kitchen_id"));
-    const refs = reservations.map(({ serviceDate }) => firestore.collection("kitchen_capacity_daily").doc(`${kitchenId}_${serviceDate}`));
-    const capacities = await Promise.all(refs.map((reference) => transaction.get(reference)));
+    const refs = reservations.map(({ serviceDate }) => firestore.collection("kitchen_capacity_daily").doc(kitchenId + "_" + serviceDate));
+    const freeRefs = reservations.map(({ serviceDate }) => firestore.collection("free_meal_cap_usage").doc(kitchenId + "_" + serviceDate));
+    const [capacities, freeCaps] = await Promise.all([
+      Promise.all(refs.map((reference) => transaction.get(reference))),
+      Promise.all(freeRefs.map((reference) => transaction.get(reference))),
+    ]);
     if (capacities.some((capacity) => new Date(String(capacity.get("cutoff_at"))) <= new Date())) {
       throw new OrderConflictError("Automatic full refund is closed after a meal cutoff; escalate for manual review.");
     }
-    reservations.forEach((reservation, index) => transaction.update(refs[index], {
-      confirmed_meals: Math.max(0, Number(capacities[index].get("confirmed_meals") || 0) - reservation.meals),
-      updated_at: FieldValue.serverTimestamp(),
-    }));
+    reservations.forEach((reservation, index) => {
+      transaction.update(refs[index], { confirmed_meals: Math.max(0, Number(capacities[index].get("confirmed_meals") || 0) - reservation.meals), updated_at: FieldValue.serverTimestamp() });
+      const freeMeals = Number(reservation.freeMeals || 0);
+      if (freeMeals > 0 && freeCaps[index].exists) {
+        const next = Math.max(0, Number(freeCaps[index].get("reserved_meals") || 0) - freeMeals);
+        transaction.update(freeRefs[index], { reserved_meals: next, remaining_meals: FREE_MEALS_DAILY_CAP - next, updated_at: FieldValue.serverTimestamp() });
+      }
+    });
     transaction.update(orderRef, {
       status: "REFUND_REQUESTED",
       refund_idempotency_key: idempotencyKey,

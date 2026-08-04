@@ -1,6 +1,16 @@
 import { BigQuery } from "@google-cloud/bigquery";
 import { Storage } from "@google-cloud/storage";
 import { createHmac } from "node:crypto";
+import { FREE_MEALS_DAILY_CAP, type FreeMealType, type PriceTier } from "@/lib/pricing";
+
+export type FreeMealItem = {
+  meal_id: string;
+  meal_name: string;
+  service_date: string;
+  free_meal_type: FreeMealType;
+  quantity: number;
+  subsidy_unit_inr: number;
+};
 
 export type OrderRecord = {
   order_id: string;
@@ -10,6 +20,7 @@ export type OrderRecord = {
   school_id: string;
   kitchen_id: string;
   payment_status: string;
+  price_tier: PriceTier;
   created_at: string;
   student_name: string;
   school_name: string;
@@ -17,6 +28,7 @@ export type OrderRecord = {
   city: string;
   grade_band: string;
   items_json: string;
+  free_meals_json: string;
   total_inr: number;
   status: string;
   receipt_uri: string | null;
@@ -47,6 +59,7 @@ function cityId(city: string) {
 
 function analyticsOrder(order: OrderRecord, receiptUri: string) {
   const items = JSON.parse(order.items_json) as AnalyticsItem[];
+  const freeMeals = JSON.parse(order.free_meals_json) as FreeMealItem[];
   const serviceDates = items.map((item) => item.service_date).sort();
   return {
     order_id: order.order_id,
@@ -61,17 +74,21 @@ function analyticsOrder(order: OrderRecord, receiptUri: string) {
     kitchen_id: order.kitchen_id,
     city_id: cityId(order.city),
     grade_band: order.grade_band,
+    price_tier: order.price_tier,
     items: items.map((item) => ({
       ...item,
       line_total_inr: item.quantity * item.unit_price_inr,
     })),
     item_count: items.reduce((sum, item) => sum + item.quantity, 0),
+    free_meals: freeMeals.map((item) => ({ ...item, subsidy_total_inr: item.quantity * item.subsidy_unit_inr })),
+    free_meal_count: freeMeals.reduce((sum, item) => sum + item.quantity, 0),
+    free_meal_daily_cap: FREE_MEALS_DAILY_CAP,
     total_inr: order.total_inr,
     currency: "INR",
     order_status: order.status,
     payment_status: order.payment_status,
     receipt_uri: receiptUri,
-    schema_version: 2,
+    schema_version: 3,
   };
 }
 

@@ -1,21 +1,21 @@
-import { BigQuery } from "@google-cloud/bigquery";
-import type { GradePlan, Meal, School } from "@/lib/meals";
+import { firestoreClient, isFirestoreConfigured } from "@/lib/firestore";
+import { gradePortionMultiplier, resolvePriceTier } from "@/lib/pricing";
+import { cities as fallbackCities, gradePlans as fallbackGradePlans, meals as fallbackMeals, schools as fallbackSchools, type GradePlan, type Meal, type School } from "@/lib/meals";
 
 export type Catalog = {
   cities: string[];
   schools: School[];
   meals: Meal[];
   gradePlans: Record<string, GradePlan>;
-  source: "bigquery";
+  source: "firestore" | "fallback" | "mixed";
 };
 
-const projectId = process.env.GCP_PROJECT_ID;
-const datasetId = process.env.BIGQUERY_DATASET || "school_lunch";
-
-function requiredIdentifier(value: string | undefined, name: string) {
-  if (!value || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error(`${name} is not configured correctly.`);
-  return value;
-}
+const cityNames: Record<string, string> = {
+  chennai: "Chennai",
+  madurai: "Madurai",
+  trichy: "Trichy",
+  coimbatore: "Coimbatore",
+};
 
 function dateValue(value: unknown) {
   if (typeof value === "string") return value;
@@ -23,60 +23,68 @@ function dateValue(value: unknown) {
   return String(value || "");
 }
 
-async function rows(bigquery: BigQuery, sql: string) {
-  const [result] = await bigquery.query({ query: sql, location: "asia-south1" });
-  return result as Record<string, unknown>[];
-}
-
 export async function getCatalog(): Promise<Catalog> {
-  const project = requiredIdentifier(projectId, "GCP_PROJECT_ID");
-  const dataset = requiredIdentifier(datasetId, "BIGQUERY_DATASET");
-  const bigquery = new BigQuery({ projectId: project });
-  const prefix = `\`${project}.${dataset}`;
-  const [cityRows, schoolRows, mealRows, gradeRows] = await Promise.all([
-    rows(bigquery, `SELECT city_id, city_name FROM ${prefix}.cities\` WHERE active ORDER BY city_name`),
-    rows(bigquery, `SELECT s.school_id, s.school_name, s.area, s.kitchen_id, c.city_name FROM ${prefix}.schools\` s JOIN ${prefix}.cities\` c USING (city_id) WHERE s.active AND c.active ORDER BY c.city_name, s.school_name`),
-    rows(bigquery, `SELECT meal_id, service_date, day_label, short_date, meal_name, description, tags, protein_g, calories, price_inr, rating, color, emoji, nutrition_status FROM ${prefix}.menu_items\` WHERE is_available AND service_date >= CURRENT_DATE("Asia/Kolkata") ORDER BY service_date, meal_id`),
-    rows(bigquery, `SELECT grade_band, label, target_calories, target_protein_g, nutrition_status FROM ${prefix}.grade_nutrition_plans\` WHERE active ORDER BY sort_order`),
-  ]);
-
-  if (!cityRows.length || !schoolRows.length || !mealRows.length || !gradeRows.length) {
-    throw new Error("BigQuery catalogue is incomplete; cities, schools, meals and grade plans are required.");
+  if (!isFirestoreConfigured()) {
+    return { cities: fallbackCities, schools: fallbackSchools, meals: fallbackMeals, gradePlans: fallbackGradePlans, source: "fallback" };
   }
 
-  const schools = schoolRows.map((row) => ({
-    id: String(row.school_id),
-    name: String(row.school_name),
-    city: String(row.city_name),
-    area: String(row.area),
-    kitchenId: String(row.kitchen_id),
-  }));
-  const meals = mealRows.map((row) => ({
-    id: String(row.meal_id),
-    serviceDate: dateValue(row.service_date),
-    day: String(row.day_label),
-    shortDate: String(row.short_date),
-    name: String(row.meal_name),
-    description: String(row.description),
-    tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
-    protein: Number(row.protein_g),
-    calories: Number(row.calories),
-    price: Number(row.price_inr),
-    rating: Number(row.rating),
-    color: String(row.color),
-    emoji: String(row.emoji),
-    nutritionStatus: String(row.nutrition_status) as Meal["nutritionStatus"],
-  }));
-  const gradePlans = Object.fromEntries(gradeRows.map((row) => {
-    const id = String(row.grade_band);
-    return [id, {
-      id,
-      label: String(row.label),
-      targetCalories: Number(row.target_calories),
-      targetProteinG: Number(row.target_protein_g),
-      nutritionStatus: String(row.nutrition_status) as GradePlan["nutritionStatus"],
-    }];
-  }));
+  const firestore = firestoreClient();
+  const [citySnapshot, schoolSnapshot, mealSnapshot, gradeSnapshot] = await Promise.all([
+    firestore.collection("cities").where("active", "==", true).get(),
+    firestore.collection("schools").where("active", "==", true).get(),
+    firestore.collection("meal_packages").where("is_available", "==", true).get(),
+    firestore.collection("grade_nutrition_plans").where("active", "==", true).get(),
+  ]);
 
-  return { cities: cityRows.map((row) => String(row.city_name)), schools, meals, gradePlans, source: "bigquery" };
+  const managedCities = citySnapshot.docs.map((document) => String(document.get("city_name"))).filter(Boolean);
+  const managedSchools = schoolSnapshot.docs.map((document) => {
+    const data = document.data();
+    return {
+      id: document.id,
+      name: String(data.school_name),
+      city: cityNames[String(data.city_id)] || String(data.city),
+      area: String(data.area),
+      kitchenId: String(data.kitchen_id),
+      priceTier: resolvePriceTier({ priceTier: data.price_tier }),
+    } satisfies School;
+  });
+  const managedMeals = mealSnapshot.docs.map((document) => {
+    const data = document.data();
+    return {
+      id: document.id,
+      serviceDate: dateValue(data.service_date),
+      day: String(data.day),
+      shortDate: String(data.short_date),
+      name: String(data.meal_name),
+      description: String(data.description),
+      tags: Array.isArray(data.tags) ? data.tags.map(String) : ["Vegetarian"],
+      protein: Number(data.protein_g || 0),
+      calories: Number(data.calories || 0),
+      price: Number(data.price_inr || 0),
+      rating: Number(data.rating || 0),
+      color: String(data.color || "green"),
+      emoji: String(data.emoji || "🍱"),
+      nutritionStatus: data.nutrition_status === "dietitian-approved" ? "dietitian-approved" : "provisional",
+    } satisfies Meal;
+  });
+  const managedGradePlans = Object.fromEntries(gradeSnapshot.docs.map((document) => {
+    const data = document.data();
+    const multiplier = gradePortionMultiplier(document.id);
+    if (multiplier === null) return [];
+    return [document.id, {
+      id: document.id,
+      label: String(data.label),
+      targetCalories: Number(data.target_calories),
+      targetProteinG: Number(data.target_protein_g),
+      multiplier,
+      nutritionStatus: data.nutrition_status === "dietitian-approved" ? "dietitian-approved" : "provisional",
+    } satisfies GradePlan];
+  }).filter((entry) => entry.length === 2));
+
+  const cities = managedCities.length ? managedCities : fallbackCities;
+  const schools = managedSchools.length ? managedSchools : fallbackSchools;
+  const meals = managedMeals.length ? managedMeals : fallbackMeals;
+  const gradePlans = Object.keys(managedGradePlans).length ? managedGradePlans : fallbackGradePlans;
+  const managedSets = [managedCities.length, managedSchools.length, managedMeals.length, Object.keys(managedGradePlans).length].filter(Boolean).length;
+  return { cities, schools, meals, gradePlans, source: managedSets === 4 ? "firestore" : "mixed" };
 }

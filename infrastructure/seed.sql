@@ -67,15 +67,20 @@ USING UNNEST([
   STRUCT("friday-balanced-meals", DATE "2026-08-14", "Friday", "14 Aug", "Friday Balanced Meals", "1 chapati, 1 bowl rice, sambar, curd, okra curry, mixed-veg curry, channa and 1 appalam.", 21, 645, NUMERIC "4.8", "purple")
 ]) S
 ON T.meal_id = S.meal_id AND T.service_date = S.service_date
-WHEN MATCHED THEN UPDATE SET day_label=S.day_label, short_date=S.short_date, meal_name=S.meal_name, description=S.description, tags=["Vegetarian", "8 items"], protein_g=S.protein_g, calories=S.calories, price_inr=39, rating=S.rating, color=S.color, emoji="🍱", nutrition_status="provisional", is_available=TRUE, updated_at=CURRENT_TIMESTAMP()
-WHEN NOT MATCHED THEN INSERT (meal_id,service_date,day_label,short_date,meal_name,description,tags,protein_g,calories,price_inr,rating,color,emoji,nutrition_status,is_available,updated_at) VALUES (S.meal_id,S.service_date,S.day_label,S.short_date,S.meal_name,S.description,["Vegetarian", "8 items"],S.protein_g,S.calories,39,S.rating,S.color,"🍱","provisional",TRUE,CURRENT_TIMESTAMP());
+WHEN MATCHED THEN UPDATE SET day_label=S.day_label, short_date=S.short_date, meal_name=S.meal_name, description=S.description, tags=["Vegetarian", "8 items"], protein_g=S.protein_g, calories=S.calories, price_inr=49, rating=S.rating, color=S.color, emoji="🍱", nutrition_status="provisional", is_available=TRUE, updated_at=CURRENT_TIMESTAMP()
+WHEN NOT MATCHED THEN INSERT (meal_id,service_date,day_label,short_date,meal_name,description,tags,protein_g,calories,price_inr,rating,color,emoji,nutrition_status,is_available,updated_at) VALUES (S.meal_id,S.service_date,S.day_label,S.short_date,S.meal_name,S.description,["Vegetarian", "8 items"],S.protein_g,S.calories,49,S.rating,S.color,"🍱","provisional",TRUE,CURRENT_TIMESTAMP());
 
 MERGE `YOUR_PROJECT_ID.school_lunch.grade_nutrition_plans` T
 USING UNNEST([
-  STRUCT("6-8" AS grade_band, "6th–8th" AS label, 700 AS target_calories, 20 AS target_protein_g, 1 AS sort_order),
-  STRUCT("9-10", "9th–10th", 875, 15, 2),
-  STRUCT("11-12", "11th–12th", 970, 17, 3)
+  STRUCT("6-8" AS grade_band, "6th–8th" AS label, 740 AS target_calories, 12 AS target_protein_g, 1 AS sort_order),
+  STRUCT("9-10", "9th–10th", 870, 15, 2),
+  STRUCT("11-12", "11th–12th", 1000, 18, 3)
 ]) S
 ON T.grade_band = S.grade_band
 WHEN MATCHED THEN UPDATE SET label=S.label, target_calories=S.target_calories, target_protein_g=S.target_protein_g, nutrition_status="provisional", sort_order=S.sort_order, active=TRUE, updated_at=CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN INSERT (grade_band,label,target_calories,target_protein_g,nutrition_status,sort_order,active,updated_at) VALUES (S.grade_band,S.label,S.target_calories,S.target_protein_g,"provisional",S.sort_order,TRUE,CURRENT_TIMESTAMP());
+
+UPDATE `YOUR_PROJECT_ID.school_lunch.schools`
+SET price_tier = IF(school_id = "chn-adyar-01", "sponsored", "market"),
+    updated_at = CURRENT_TIMESTAMP()
+WHERE active;

@@ -183,3 +183,53 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.grade_nutrition_plans` 
   updated_at TIMESTAMP NOT NULL
 )
 CLUSTER BY active, sort_order, grade_band;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.schools`
+ADD COLUMN IF NOT EXISTS price_tier STRING;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders_v2`
+ADD COLUMN IF NOT EXISTS price_tier STRING;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders_v2`
+ADD COLUMN IF NOT EXISTS free_meals ARRAY<STRUCT<
+  meal_id STRING,
+  meal_name STRING,
+  service_date DATE,
+  free_meal_type STRING,
+  quantity INT64,
+  subsidy_unit_inr NUMERIC,
+  subsidy_total_inr NUMERIC
+>>;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders_v2`
+ADD COLUMN IF NOT EXISTS free_meal_count INT64;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders_v2`
+ADD COLUMN IF NOT EXISTS free_meal_daily_cap INT64;
+
+CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_lunch.free_meal_summary` AS
+SELECT
+  orders.kitchen_id,
+  orders.city_id,
+  orders.school_id,
+  free_meal.service_date,
+  DATE_TRUNC(free_meal.service_date, MONTH) AS service_month,
+  free_meal.free_meal_type,
+  SUM(free_meal.quantity) AS free_meals,
+  SUM(free_meal.subsidy_total_inr) AS subsidy_cost_inr
+FROM `YOUR_PROJECT_ID.school_lunch.orders_v2` AS orders,
+UNNEST(IFNULL(orders.free_meals, [])) AS free_meal
+WHERE orders.order_status NOT IN ("PAYMENT_EXPIRED", "REFUNDED", "REFUND_REQUESTED")
+GROUP BY kitchen_id, city_id, school_id, service_date, service_month, free_meal_type;
+
+CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_lunch.daily_free_meal_cap_usage` AS
+SELECT
+  kitchen_id,
+  service_date,
+  SUM(free_meals) AS free_meals_used,
+  25 AS daily_cap,
+  GREATEST(0, 25 - SUM(free_meals)) AS remaining_meals,
+  SUM(subsidy_cost_inr) AS subsidy_cost_inr,
+  SUM(free_meals) >= 25 AS cap_reached
+FROM `YOUR_PROJECT_ID.school_lunch.free_meal_summary`
+GROUP BY kitchen_id, service_date;
