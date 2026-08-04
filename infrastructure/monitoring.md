@@ -2,6 +2,8 @@
 
 Configure these checks before the staging test:
 
+Staging deployment is manually triggered with `workflow_dispatch`. Repository administrators can add a protected GitHub `staging` environment later; the current collaborator account cannot create repository environments.
+
 The Cloud Run service must accept unauthenticated network requests so Razorpay can reach the signed webhook. Application APIs remain protected by Firebase ID tokens, scoped staff claims, task secrets, or Razorpay HMAC signatures as appropriate.
 
 - Cloud Run uptime check: `GET /api/health` every minute.
