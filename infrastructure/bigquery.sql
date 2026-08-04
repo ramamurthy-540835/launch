@@ -34,3 +34,72 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.meal_packages` (
 )
 PARTITION BY service_date
 CLUSTER BY city, grade_band, diet_type;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.cities` (
+  city_id STRING NOT NULL,
+  city_name STRING NOT NULL,
+  active BOOL NOT NULL,
+  launch_date DATE,
+  updated_at TIMESTAMP NOT NULL
+)
+CLUSTER BY active, city_id;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.kitchens` (
+  kitchen_id STRING NOT NULL,
+  city_id STRING NOT NULL,
+  kitchen_name STRING NOT NULL,
+  daily_capacity INT64 NOT NULL,
+  order_cutoff TIME NOT NULL,
+  prep_lead_minutes INT64 NOT NULL,
+  active BOOL NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+CLUSTER BY city_id, active;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.schools` (
+  school_id STRING NOT NULL,
+  city_id STRING NOT NULL,
+  kitchen_id STRING NOT NULL,
+  school_name STRING NOT NULL,
+  area STRING NOT NULL,
+  active BOOL NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+CLUSTER BY city_id, kitchen_id, active;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.delivery_routes` (
+  route_id STRING NOT NULL,
+  kitchen_id STRING NOT NULL,
+  route_name STRING NOT NULL,
+  driver_id STRING,
+  active BOOL NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+CLUSTER BY kitchen_id, active;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.route_stops_daily` (
+  service_date DATE NOT NULL,
+  route_id STRING NOT NULL,
+  stop_sequence INT64 NOT NULL,
+  school_id STRING NOT NULL,
+  planned_arrival TIME,
+  delivered_at TIMESTAMP,
+  proof_uri STRING,
+  status STRING NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY service_date
+CLUSTER BY route_id, school_id, status;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.kitchen_capacity_daily` (
+  service_date DATE NOT NULL,
+  kitchen_id STRING NOT NULL,
+  capacity_meals INT64 NOT NULL,
+  confirmed_meals INT64 NOT NULL,
+  waitlisted_meals INT64 NOT NULL,
+  cutoff_at TIMESTAMP NOT NULL,
+  status STRING NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY service_date
+CLUSTER BY kitchen_id, status;
