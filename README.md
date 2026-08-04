@@ -89,6 +89,8 @@ When the three `RAZORPAY_*` variables are configured, orders begin as `PENDING_P
 
 Run `POST /api/tasks/expire-payments` every minute from Cloud Scheduler with the `X-Task-Secret` header. It expires abandoned holds after `PAYMENT_HOLD_MINUTES` and releases pending capacity atomically. Deploy `infrastructure/firestore.indexes.json` before enabling this task. Full refunds are available through the admin payments API only before every selected meal cutoff; they use Razorpay refund idempotency and release confirmed capacity exactly once.
 
+For infrastructure-only staging before Firebase/Razorpay onboarding, set `REQUIRE_FIREBASE_AUTH=false` and `ENABLE_PAYMENTS=false`. This mode must never be used for real parent data or production orders; it exists only for synthetic Firestore, BigQuery, GCS, capacity and deployment validation.
+
 ## Important production additions
 
 - Authentication and role-based admin access

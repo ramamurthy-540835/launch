@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   const checks = {
     firestore: isFirestoreConfigured(),
     storage: Boolean(process.env.GCS_BUCKET),
-    firebaseWeb: Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
-    payments: isRazorpayConfigured(),
+    firebaseWeb: process.env.REQUIRE_FIREBASE_AUTH === "false" || Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+    payments: process.env.ENABLE_PAYMENTS === "false" || isRazorpayConfigured(),
   };
   if (readiness && checks.firestore) {
     try { await firestoreClient().collection("_health").limit(1).get(); }

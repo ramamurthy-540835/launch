@@ -12,7 +12,7 @@ export class ParentAuthError extends Error {
 }
 
 export function isParentAuthRequired() {
-  return isFirestoreConfigured();
+  return isFirestoreConfigured() && process.env.REQUIRE_FIREBASE_AUTH !== "false";
 }
 
 function adminAuth() {

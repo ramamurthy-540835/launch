@@ -5,7 +5,7 @@ const keySecret = process.env.RAZORPAY_KEY_SECRET;
 const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
 export function isRazorpayConfigured() {
-  return Boolean(keyId && keySecret);
+  return process.env.ENABLE_PAYMENTS !== "false" && Boolean(keyId && keySecret);
 }
 
 export function paymentCheckoutDetails(id: string, amountInr: number) {

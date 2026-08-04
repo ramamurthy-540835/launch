@@ -35,6 +35,5 @@ jobs:
           --region "${{ vars.GCP_REGION }}"
           --service-account "${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}"
           --allow-unauthenticated
-          --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},BIGQUERY_DATASET=school_lunch,BIGQUERY_ORDERS_TABLE=orders,GCS_BUCKET=${{ vars.GCS_BUCKET }},FIRESTORE_DATABASE_ID=(default),PAYMENT_HOLD_MINUTES=15,NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.FIREBASE_API_KEY }},NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.FIREBASE_AUTH_DOMAIN }},NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.FIREBASE_APP_ID }}"
-          --set-build-env-vars "NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.FIREBASE_API_KEY }},NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.FIREBASE_AUTH_DOMAIN }},NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.FIREBASE_APP_ID }}"
-          --set-secrets "RAZORPAY_KEY_ID=razorpay-key-id:latest,RAZORPAY_KEY_SECRET=razorpay-key-secret:latest,RAZORPAY_WEBHOOK_SECRET=razorpay-webhook-secret:latest,PAYMENT_EXPIRY_TASK_SECRET=payment-expiry-task-secret:latest"
+          --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},BIGQUERY_DATASET=school_lunch,BIGQUERY_ORDERS_TABLE=orders,GCS_BUCKET=${{ vars.GCS_BUCKET }},FIRESTORE_DATABASE_ID=(default),PAYMENT_HOLD_MINUTES=15,REQUIRE_FIREBASE_AUTH=false,ENABLE_PAYMENTS=false"
+          --set-secrets "PAYMENT_EXPIRY_TASK_SECRET=payment-expiry-task-secret:latest"
