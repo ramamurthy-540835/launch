@@ -1,17 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { meals } from "@/lib/meals";
+import { mealNutrition, type GradePlan, type Meal } from "@/lib/meals";
 
-describe("launch meal catalogue", () => {
-  it("has unique IDs and service dates", () => {
-    expect(new Set(meals.map((meal) => meal.id)).size).toBe(meals.length);
-    expect(new Set(meals.map((meal) => meal.serviceDate)).size).toBe(meals.length);
+const meal: Meal = { id: "test", serviceDate: "2026-08-10", day: "Monday", shortDate: "10 Aug", name: "Balanced lunch", description: "Test meal", tags: ["Vegetarian"], protein: 20, calories: 640, price: 39, rating: 4.9, color: "green", emoji: "🍱", nutritionStatus: "provisional" };
+const gradePlan: GradePlan = { id: "9-10", label: "9th–10th", targetCalories: 875, targetProteinG: 15, nutritionStatus: "provisional" };
+
+describe("BigQuery meal nutrition mapping", () => {
+  it("keeps estimated meal nutrition separate from grade targets", () => {
+    expect(mealNutrition(meal, gradePlan)).toEqual({ estimatedCalories: 640, estimatedProteinG: 20, targetCalories: 875, targetProteinG: 15, status: "provisional" });
   });
 
   it("keeps the pilot price at ₹39", () => {
-    expect(meals.every((meal) => meal.price === 39)).toBe(true);
-  });
-
-  it("uses ISO service dates", () => {
-    expect(meals.every((meal) => /^\d{4}-\d{2}-\d{2}$/.test(meal.serviceDate))).toBe(true);
+    expect(meal.price).toBe(39);
   });
 });

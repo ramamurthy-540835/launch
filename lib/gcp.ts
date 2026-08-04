@@ -1,11 +1,15 @@
 import { BigQuery } from "@google-cloud/bigquery";
 import { Storage } from "@google-cloud/storage";
+import { createHmac } from "node:crypto";
 
 export type OrderRecord = {
   order_id: string;
   parent_uid: string | null;
   student_id: string | null;
   allergies_json: string | null;
+  school_id: string;
+  kitchen_id: string;
+  payment_status: string;
   created_at: string;
   student_name: string;
   school_name: string;
@@ -20,8 +24,56 @@ export type OrderRecord = {
 
 const projectId = process.env.GCP_PROJECT_ID;
 const datasetId = process.env.BIGQUERY_DATASET || "school_lunch";
-const tableId = process.env.BIGQUERY_ORDERS_TABLE || "orders";
+const tableId = process.env.BIGQUERY_ORDERS_TABLE || "orders_v2";
 const bucketName = process.env.GCS_BUCKET;
+const analyticsHashSalt = process.env.ANALYTICS_HASH_SALT;
+
+type AnalyticsItem = {
+  meal_id: string;
+  meal_name: string;
+  service_date: string;
+  quantity: number;
+  unit_price_inr: number;
+};
+
+function analyticsRef(value: string | null) {
+  if (!value || !analyticsHashSalt) return null;
+  return createHmac("sha256", analyticsHashSalt).update(value).digest("hex");
+}
+
+function cityId(city: string) {
+  return city.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function analyticsOrder(order: OrderRecord, receiptUri: string) {
+  const items = JSON.parse(order.items_json) as AnalyticsItem[];
+  const serviceDates = items.map((item) => item.service_date).sort();
+  return {
+    order_id: order.order_id,
+    created_at: order.created_at,
+    updated_at: order.created_at,
+    first_service_date: serviceDates[0] || null,
+    last_service_date: serviceDates.at(-1) || null,
+    parent_ref: analyticsRef(order.parent_uid || order.parent_phone),
+    student_ref: analyticsRef(order.student_id || `${order.school_id}:${order.student_name}`),
+    school_id: order.school_id,
+    school_name: order.school_name,
+    kitchen_id: order.kitchen_id,
+    city_id: cityId(order.city),
+    grade_band: order.grade_band,
+    items: items.map((item) => ({
+      ...item,
+      line_total_inr: item.quantity * item.unit_price_inr,
+    })),
+    item_count: items.reduce((sum, item) => sum + item.quantity, 0),
+    total_inr: order.total_inr,
+    currency: "INR",
+    order_status: order.status,
+    payment_status: order.payment_status,
+    receipt_uri: receiptUri,
+    schema_version: 2,
+  };
+}
 
 export function isGcpConfigured() {
   return Boolean(projectId && bucketName);
@@ -35,6 +87,7 @@ export async function persistOrder(order: OrderRecord) {
   const objectName = `order-packets/${order.created_at.slice(0, 10)}/${order.order_id}.json`;
   const receiptUri = `gs://${bucketName}/${objectName}`;
   const storedOrder = { ...order, receipt_uri: receiptUri };
+  const analyticsRow = analyticsOrder(order, receiptUri);
 
   let createdObject = false;
   try {
@@ -52,7 +105,7 @@ export async function persistOrder(order: OrderRecord) {
 
   try {
     await bigquery.dataset(datasetId).table(tableId).insert(
-      [{ insertId: order.order_id, json: storedOrder }],
+      [{ insertId: order.order_id, json: analyticsRow }],
       { raw: true },
     );
   } catch (error) {

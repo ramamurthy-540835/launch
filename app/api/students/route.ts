@@ -2,7 +2,7 @@ import { FieldValue } from "@google-cloud/firestore";
 import { NextResponse } from "next/server";
 import { ParentAuthError, verifyParent } from "@/lib/firebase-admin";
 import { firestoreClient } from "@/lib/firestore";
-import { gradeAdjustments, schools } from "@/lib/meals";
+import { getCatalog } from "@/lib/catalog";
 import { enforceRateLimit, RateLimitError } from "@/lib/hardening";
 
 export const runtime = "nodejs";
@@ -45,8 +45,9 @@ export async function POST(request: Request) {
     const allergies = Array.isArray(body.allergies)
       ? body.allergies.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20)
       : [];
+    const catalog = await getCatalog();
 
-    if (studentName.length < 2 || studentName.length > 100 || !schools.some((school) => school.id === schoolId) || !(gradeBand in gradeAdjustments)) {
+    if (studentName.length < 2 || studentName.length > 100 || !catalog.schools.some((school) => school.id === schoolId) || !(gradeBand in catalog.gradePlans)) {
       return NextResponse.json({ error: "Enter a valid student name, school and grade." }, { status: 400 });
     }
     if (body.allergyAcknowledged !== true) {

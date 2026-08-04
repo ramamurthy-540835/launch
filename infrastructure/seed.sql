@@ -57,3 +57,25 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT (route_id, kitchen_id, route_name, driver_id, active, updated_at)
   VALUES (S.route_id, S.kitchen_id, S.route_name, NULL, TRUE, CURRENT_TIMESTAMP());
+
+MERGE `YOUR_PROJECT_ID.school_lunch.menu_items` T
+USING UNNEST([
+  STRUCT("monday-balanced-meals" AS meal_id, DATE "2026-08-10" AS service_date, "Monday" AS day_label, "10 Aug" AS short_date, "Monday Balanced Meals" AS meal_name, "1 chapati, 1 bowl rice, sambar, curd, beans curry, carrot curry, channa and 1 appalam." AS description, 20 AS protein_g, 640 AS calories, NUMERIC "4.9" AS rating, "yellow" AS color),
+  STRUCT("tuesday-balanced-meals", DATE "2026-08-11", "Tuesday", "11 Aug", "Tuesday Balanced Meals", "1 chapati, 1 bowl rice, sambar, curd, cabbage curry, beetroot curry, channa and 1 appalam.", 20, 640, NUMERIC "4.8", "green"),
+  STRUCT("wednesday-balanced-meals", DATE "2026-08-12", "Wednesday", "12 Aug", "Wednesday Balanced Meals", "1 chapati, 1 bowl rice, sambar, curd, cauliflower curry, greens curry, channa and 1 appalam.", 21, 645, NUMERIC "4.9", "orange"),
+  STRUCT("thursday-balanced-meals", DATE "2026-08-13", "Thursday", "13 Aug", "Thursday Balanced Meals", "1 chapati, 1 bowl rice, sambar, curd, potato-peas curry, pumpkin curry, channa and 1 appalam.", 20, 650, NUMERIC "4.7", "red"),
+  STRUCT("friday-balanced-meals", DATE "2026-08-14", "Friday", "14 Aug", "Friday Balanced Meals", "1 chapati, 1 bowl rice, sambar, curd, okra curry, mixed-veg curry, channa and 1 appalam.", 21, 645, NUMERIC "4.8", "purple")
+]) S
+ON T.meal_id = S.meal_id AND T.service_date = S.service_date
+WHEN MATCHED THEN UPDATE SET day_label=S.day_label, short_date=S.short_date, meal_name=S.meal_name, description=S.description, tags=["Vegetarian", "8 items"], protein_g=S.protein_g, calories=S.calories, price_inr=39, rating=S.rating, color=S.color, emoji="🍱", nutrition_status="provisional", is_available=TRUE, updated_at=CURRENT_TIMESTAMP()
+WHEN NOT MATCHED THEN INSERT (meal_id,service_date,day_label,short_date,meal_name,description,tags,protein_g,calories,price_inr,rating,color,emoji,nutrition_status,is_available,updated_at) VALUES (S.meal_id,S.service_date,S.day_label,S.short_date,S.meal_name,S.description,["Vegetarian", "8 items"],S.protein_g,S.calories,39,S.rating,S.color,"🍱","provisional",TRUE,CURRENT_TIMESTAMP());
+
+MERGE `YOUR_PROJECT_ID.school_lunch.grade_nutrition_plans` T
+USING UNNEST([
+  STRUCT("6-8" AS grade_band, "6th–8th" AS label, 700 AS target_calories, 20 AS target_protein_g, 1 AS sort_order),
+  STRUCT("9-10", "9th–10th", 875, 15, 2),
+  STRUCT("11-12", "11th–12th", 970, 17, 3)
+]) S
+ON T.grade_band = S.grade_band
+WHEN MATCHED THEN UPDATE SET label=S.label, target_calories=S.target_calories, target_protein_g=S.target_protein_g, nutrition_status="provisional", sort_order=S.sort_order, active=TRUE, updated_at=CURRENT_TIMESTAMP()
+WHEN NOT MATCHED THEN INSERT (grade_band,label,target_calories,target_protein_g,nutrition_status,sort_order,active,updated_at) VALUES (S.grade_band,S.label,S.target_calories,S.target_protein_g,"provisional",S.sort_order,TRUE,CURRENT_TIMESTAMP());

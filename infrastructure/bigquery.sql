@@ -116,3 +116,70 @@ CLUSTER BY kitchen_id, status;
 
 ALTER TABLE `YOUR_PROJECT_ID.school_lunch.kitchen_capacity_daily`
 ADD COLUMN IF NOT EXISTS pending_meals INT64;
+
+-- Version 2 is the analytics-safe order model. The legacy orders table remains
+-- available for migration/audit, but new application writes target orders_v2.
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.orders_v2` (
+  order_id STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  first_service_date DATE,
+  last_service_date DATE,
+  parent_ref STRING,
+  student_ref STRING,
+  school_id STRING NOT NULL,
+  school_name STRING NOT NULL,
+  kitchen_id STRING NOT NULL,
+  city_id STRING NOT NULL,
+  grade_band STRING NOT NULL,
+  items ARRAY<STRUCT<
+    meal_id STRING,
+    meal_name STRING,
+    service_date DATE,
+    quantity INT64,
+    unit_price_inr NUMERIC,
+    line_total_inr NUMERIC
+  >>,
+  item_count INT64 NOT NULL,
+  total_inr NUMERIC NOT NULL,
+  currency STRING NOT NULL,
+  order_status STRING NOT NULL,
+  payment_status STRING NOT NULL,
+  receipt_uri STRING,
+  schema_version INT64 NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY city_id, school_id, order_status, payment_status;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.menu_items` (
+  meal_id STRING NOT NULL,
+  service_date DATE NOT NULL,
+  day_label STRING NOT NULL,
+  short_date STRING NOT NULL,
+  meal_name STRING NOT NULL,
+  description STRING NOT NULL,
+  tags ARRAY<STRING>,
+  protein_g NUMERIC NOT NULL,
+  calories INT64 NOT NULL,
+  price_inr NUMERIC NOT NULL,
+  rating NUMERIC NOT NULL,
+  color STRING NOT NULL,
+  emoji STRING NOT NULL,
+  nutrition_status STRING NOT NULL,
+  is_available BOOL NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY service_date
+CLUSTER BY is_available, nutrition_status, meal_id;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.grade_nutrition_plans` (
+  grade_band STRING NOT NULL,
+  label STRING NOT NULL,
+  target_calories INT64 NOT NULL,
+  target_protein_g NUMERIC NOT NULL,
+  nutrition_status STRING NOT NULL,
+  sort_order INT64 NOT NULL,
+  active BOOL NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+CLUSTER BY active, sort_order, grade_band;

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { gradeAdjustments } from "@/lib/meals";
 import { getCatalog } from "@/lib/catalog";
 import { isGcpConfigured, persistOrder, type OrderRecord } from "@/lib/gcp";
 import { attachPaymentOrder, getOwnedStudent, isFirestoreConfigured, markOrderSynced, OrderConflictError, reserveOrder } from "@/lib/firestore";
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
     if (parent && parent.phone !== body.parentPhone) {
       return NextResponse.json({ error: "Use the verified parent mobile number." }, { status: 403 });
     }
-    if (!catalog.cities.includes(body.city as string) || !(body.gradeBand as string in gradeAdjustments)) {
+    if (!catalog.cities.includes(body.city as string) || !(body.gradeBand as string in catalog.gradePlans)) {
       return NextResponse.json({ error: "Choose a supported city and grade." }, { status: 400 });
     }
     const school = catalog.schools.find((entry) => entry.name === body.schoolName && entry.city === body.city);
@@ -96,6 +95,9 @@ export async function POST(request: Request) {
       parent_uid: parent?.uid || null,
       student_id: typeof body.studentId === "string" ? body.studentId : null,
       allergies_json: allergiesJson,
+      school_id: school.id,
+      kitchen_id: school.kitchenId,
+      payment_status: isRazorpayConfigured() ? "PENDING" : "NOT_REQUIRED",
       created_at: new Date().toISOString(),
       student_name: studentName,
       school_name: (body.schoolName as string).trim(),

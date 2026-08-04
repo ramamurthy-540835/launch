@@ -4,7 +4,7 @@ import ParentAuth from "@/components/ParentAuth";
 import StudentProfiles, { type StudentSelection } from "@/components/StudentProfiles";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { cities as fallbackCities, gradeAdjustments, meals as fallbackMeals, schools as fallbackSchools, type Meal, type School } from "@/lib/meals";
+import { mealNutrition, type GradePlan, type Meal, type School } from "@/lib/meals";
 import { firebaseAuth, isFirebaseClientConfigured } from "@/lib/firebase-client";
 
 type Cart = Record<string, number>;
@@ -25,13 +25,15 @@ async function loadRazorpayCheckout() {
 }
 
 export default function Home() {
-  const [cities, setCities] = useState(fallbackCities);
-  const [meals, setMeals] = useState(fallbackMeals);
-  const [schools, setSchools] = useState<School[]>(fallbackSchools);
-  const [city, setCity] = useState("Chennai");
-  const [schoolId, setSchoolId] = useState("chn-adyar-01");
-  const [gradeBand, setGradeBand] = useState("6-8");
-  const [cart, setCart] = useState<Cart>({ "monday-balanced-meals": 1 });
+  const [cities, setCities] = useState<string[]>([]);
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [gradePlans, setGradePlans] = useState<Record<string, GradePlan>>({});
+  const [catalogError, setCatalogError] = useState("");
+  const [city, setCity] = useState("");
+  const [schoolId, setSchoolId] = useState("request");
+  const [gradeBand, setGradeBand] = useState("");
+  const [cart, setCart] = useState<Cart>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -48,12 +50,15 @@ export default function Home() {
       setCities(catalog.cities);
       setMeals(catalog.meals);
       setSchools(catalog.schools);
+      setGradePlans(catalog.gradePlans);
+      setCatalogError("");
+      setCity((current) => catalog.cities.includes(current) ? current : catalog.cities[0]);
+      setGradeBand((current) => catalog.gradePlans[current] ? current : Object.keys(catalog.gradePlans)[0]);
       setSchoolId((current) => {
         if (catalog.schools.some((school: School) => school.id === current)) return current;
-        setCity(catalog.cities[0]);
         return catalog.schools[0]?.id || "request";
       });
-    }).catch(() => undefined);
+    }).catch((error) => setCatalogError(error instanceof Error ? error.message : "Catalogue unavailable"));
   }, []);
 
   const visibleMeals = meals;
@@ -206,12 +211,13 @@ export default function Home() {
         <div className="filters">
           <label><span>Delivering to</span><select value={city} onChange={(e) => changeCity(e.target.value)}>{cities.map((item) => <option key={item}>{item}</option>)}</select></label>
           <label><span>Onboarded school</span><select value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>{citySchools.map((school) => <option value={school.id} key={school.id}>{school.name} · {school.area}</option>)}<option value="request">My school is not listed</option></select></label>
-          <label><span>Student grade</span><select value={gradeBand} onChange={(e) => setGradeBand(e.target.value)}>{Object.entries(gradeAdjustments).map(([id, item]) => <option value={id} key={id}>{item.label} standard</option>)}</select></label>
+          <label><span>Student grade</span><select value={gradeBand} onChange={(e) => setGradeBand(e.target.value)} disabled={!gradeBand}>{Object.entries(gradePlans).map(([id, item]) => <option value={id} key={id}>{item.label} standard</option>)}</select></label>
           <div className="diet-tabs" aria-label="Meal type"><button className="active">100% vegetarian</button></div>
         </div>
 
         <div className="meal-grid">
-          {visibleMeals.map((meal) => <MealCard key={meal.id} meal={meal} gradeBand={gradeBand} quantity={cart[meal.id] || 0} onAdd={() => addMeal(meal.id)} />)}
+          {catalogError && <p role="alert">{catalogError}. Please try again shortly.</p>}
+          {gradePlans[gradeBand] && visibleMeals.map((meal) => <MealCard key={meal.id} meal={meal} gradePlan={gradePlans[gradeBand]} quantity={cart[meal.id] || 0} onAdd={() => addMeal(meal.id)} />)}
         </div>
       </section>
 
@@ -233,7 +239,7 @@ export default function Home() {
       </aside></div>}
 
       {checkoutOpen && <div className="overlay modal-overlay"><form className="checkout-modal" onSubmit={placeOrder}>
-        <button type="button" className="close" onClick={() => setCheckoutOpen(false)}>×</button><span className="kicker">FINAL STEP</span><h2>Where should we deliver?</h2><p>{gradeAdjustments[gradeBand].label} standard · {city} · ₹{subtotal}</p>
+        <button type="button" className="close" onClick={() => setCheckoutOpen(false)}>×</button><span className="kicker">FINAL STEP</span><h2>Where should we deliver?</h2><p>{gradePlans[gradeBand]?.label} standard · {city} · ₹{subtotal}</p>
         {!isFirebaseClientConfigured && <label>Student name<input name="studentName" required minLength={2} placeholder="e.g. Nila Raman" /></label>}
         <label>School<input value={selectedSchool?.name || "Not yet onboarded"} readOnly /></label>
         {isFirebaseClientConfigured ? <ParentAuth onChange={setVerifiedPhone} /> : <label>Parent mobile<input name="parentPhone" required inputMode="tel" pattern="[6-9][0-9]{9}" placeholder="10-digit mobile number" /></label>}
@@ -247,11 +253,10 @@ export default function Home() {
   );
 }
 
-function MealCard({ meal, gradeBand, quantity, onAdd }: { meal: Meal; gradeBand: string; quantity: number; onAdd: () => void }) {
-  const calories = Math.round(meal.calories * gradeAdjustments[gradeBand].multiplier);
-  const protein = Math.round(meal.protein * gradeAdjustments[gradeBand].multiplier);
+function MealCard({ meal, gradePlan, quantity, onAdd }: { meal: Meal; gradePlan: GradePlan; quantity: number; onAdd: () => void }) {
+  const nutrition = mealNutrition(meal, gradePlan);
   return <article className="meal-card">
     <div className={`meal-photo ${meal.color}`}><span className="day-pill">{meal.day} · {meal.shortDate}</span><span className="food-emoji">{meal.emoji}</span><span className="rating">★ {meal.rating}</span></div>
-    <div className="meal-body"><div className="tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><h3>{meal.name}</h3><p>{meal.description}</p><div className="macros"><span><b>{protein}g</b> protein</span><span><b>{calories}</b> kcal</span><span><b>4+</b> food groups</span></div><div className="meal-bottom"><strong>₹{meal.price}<small> / meal</small></strong><button onClick={onAdd}>{quantity ? `Add another (${quantity})` : "Add to bag"} <span>+</span></button></div></div>
+    <div className="meal-body"><div className="tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><h3>{meal.name}</h3><p>{meal.description}</p><div className="macros"><span><b>{nutrition.estimatedProteinG}g</b> protein</span><span><b>{nutrition.estimatedCalories}</b> kcal</span><span><b>{nutrition.targetCalories}</b> kcal grade target</span></div><div className="meal-bottom"><strong>₹{meal.price}<small> / meal</small></strong><button onClick={onAdd}>{quantity ? `Add another (${quantity})` : "Add to bag"} <span>+</span></button></div></div>
   </article>;
 }
