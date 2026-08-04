@@ -3,6 +3,9 @@ import { Storage } from "@google-cloud/storage";
 
 export type OrderRecord = {
   order_id: string;
+  parent_uid: string | null;
+  student_id: string | null;
+  allergies_json: string | null;
   created_at: string;
   student_name: string;
   school_name: string;
@@ -33,19 +36,47 @@ export async function persistOrder(order: OrderRecord) {
   const receiptUri = `gs://${bucketName}/${objectName}`;
   const storedOrder = { ...order, receipt_uri: receiptUri };
 
-  await storage.bucket(bucketName).file(objectName).save(JSON.stringify(storedOrder, null, 2), {
-    contentType: "application/json",
-    resumable: false,
-    metadata: { cacheControl: "no-store" },
-    preconditionOpts: { ifGenerationMatch: 0 },
-  });
+  let createdObject = false;
+  try {
+    await storage.bucket(bucketName).file(objectName).save(JSON.stringify(storedOrder, null, 2), {
+      contentType: "application/json",
+      resumable: false,
+      metadata: { cacheControl: "no-store" },
+      preconditionOpts: { ifGenerationMatch: 0 },
+    });
+    createdObject = true;
+  } catch (error) {
+    const code = (error as { code?: number }).code;
+    if (code !== 412) throw error;
+  }
 
   try {
-    await bigquery.dataset(datasetId).table(tableId).insert([storedOrder]);
+    await bigquery.dataset(datasetId).table(tableId).insert(
+      [{ insertId: order.order_id, json: storedOrder }],
+      { raw: true },
+    );
   } catch (error) {
-    await storage.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true }).catch(() => undefined);
+    if (createdObject) {
+      await storage.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true }).catch(() => undefined);
+    }
     throw error;
   }
 
   return { mode: "gcp" as const, receiptUri };
+}
+
+export async function storeDeliveryProof(serviceDate: string, routeId: string, schoolId: string, file: File) {
+  if (!projectId || !bucketName) throw new Error("GCS delivery-proof storage is not configured.");
+  if (file.size < 1 || file.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Proof must be a JPG, PNG or WebP image under 5 MB.");
+  }
+  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const objectName = `delivery-proofs/${serviceDate}/${routeId}/${schoolId}-${crypto.randomUUID()}.${extension}`;
+  await new Storage({ projectId }).bucket(bucketName).file(objectName).save(Buffer.from(await file.arrayBuffer()), {
+    contentType: file.type,
+    resumable: false,
+    metadata: { cacheControl: "private, no-store" },
+    preconditionOpts: { ifGenerationMatch: 0 },
+  });
+  return `gs://${bucketName}/${objectName}`;
 }

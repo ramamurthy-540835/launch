@@ -1,12 +1,33 @@
 "use client";
 import InstallAppButton from "@/components/InstallAppButton";
+import ParentAuth from "@/components/ParentAuth";
+import StudentProfiles, { type StudentSelection } from "@/components/StudentProfiles";
 
-import { FormEvent, useMemo, useState } from "react";
-import { cities, gradeAdjustments, meals, schools, type Meal } from "@/lib/meals";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { cities as fallbackCities, gradeAdjustments, meals as fallbackMeals, schools as fallbackSchools, type Meal, type School } from "@/lib/meals";
+import { firebaseAuth, isFirebaseClientConfigured } from "@/lib/firebase-client";
 
 type Cart = Record<string, number>;
+type RazorpayResult = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+type RazorpayConstructor = new (options: Record<string, unknown>) => { open: () => void };
+
+declare global { interface Window { Razorpay?: RazorpayConstructor } }
+
+async function loadRazorpayCheckout() {
+  if (window.Razorpay) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Unable to load secure payment checkout."));
+    document.head.appendChild(script);
+  });
+}
 
 export default function Home() {
+  const [cities, setCities] = useState(fallbackCities);
+  const [meals, setMeals] = useState(fallbackMeals);
+  const [schools, setSchools] = useState<School[]>(fallbackSchools);
   const [city, setCity] = useState("Chennai");
   const [schoolId, setSchoolId] = useState("chn-adyar-01");
   const [gradeBand, setGradeBand] = useState("6-8");
@@ -15,6 +36,25 @@ export default function Home() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState("");
+  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null);
+  const idempotencyKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/catalog").then(async (response) => {
+      if (!response.ok) throw new Error("Catalogue unavailable");
+      return response.json();
+    }).then((catalog) => {
+      setCities(catalog.cities);
+      setMeals(catalog.meals);
+      setSchools(catalog.schools);
+      setSchoolId((current) => {
+        if (catalog.schools.some((school: School) => school.id === current)) return current;
+        setCity(catalog.cities[0]);
+        return catalog.schools[0]?.id || "request";
+      });
+    }).catch(() => undefined);
+  }, []);
 
   const visibleMeals = meals;
 
@@ -29,7 +69,7 @@ export default function Home() {
   const itemCount = Object.values(cart).reduce((sum, count) => sum + count, 0);
   const subtotal = useMemo(
     () => meals.reduce((sum, meal) => sum + meal.price * (cart[meal.id] || 0), 0),
-    [cart],
+    [cart, meals],
   );
 
   function addMeal(id: string) {
@@ -52,13 +92,16 @@ export default function Home() {
     const items = Object.entries(cart).map(([mealId, quantity]) => ({ mealId, quantity }));
 
     try {
+      idempotencyKey.current ||= crypto.randomUUID();
+      const token = await firebaseAuth()?.currentUser?.getIdToken();
       const response = await fetch("/api/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey.current, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           studentName: form.get("studentName"),
+          studentId: selectedStudent?.id,
           schoolName: selectedSchool?.name,
-          parentPhone: form.get("parentPhone"),
+          parentPhone: verifiedPhone || form.get("parentPhone"),
           city,
           gradeBand,
           items,
@@ -67,7 +110,36 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Order failed");
+      if (data.payment) {
+        await loadRazorpayCheckout();
+        await new Promise<void>((resolve, reject) => {
+          const checkout = new window.Razorpay!({
+            key: data.payment.keyId,
+            amount: data.payment.amount,
+            currency: data.payment.currency,
+            name: "LunchBox",
+            description: "School lunch order",
+            order_id: data.payment.id,
+            prefill: { contact: `+91${verifiedPhone}` },
+            handler: async (result: RazorpayResult) => {
+              try {
+                const verification = await fetch("/api/payments/verify", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify(result),
+                });
+                const verified = await verification.json();
+                if (!verification.ok) throw new Error(verified.error || "Payment verification failed.");
+                resolve();
+              } catch (error) { reject(error); }
+            },
+            modal: { ondismiss: () => reject(new Error("Payment was not completed.")) },
+          });
+          checkout.open();
+        });
+      }
       setConfirmation(data.orderId);
+      idempotencyKey.current = null;
       setCart({});
       setCheckoutOpen(false);
       setCartOpen(false);
@@ -162,10 +234,11 @@ export default function Home() {
 
       {checkoutOpen && <div className="overlay modal-overlay"><form className="checkout-modal" onSubmit={placeOrder}>
         <button type="button" className="close" onClick={() => setCheckoutOpen(false)}>×</button><span className="kicker">FINAL STEP</span><h2>Where should we deliver?</h2><p>{gradeAdjustments[gradeBand].label} standard · {city} · ₹{subtotal}</p>
-        <label>Student name<input name="studentName" required minLength={2} placeholder="e.g. Nila Raman" /></label>
+        {!isFirebaseClientConfigured && <label>Student name<input name="studentName" required minLength={2} placeholder="e.g. Nila Raman" /></label>}
         <label>School<input value={selectedSchool?.name || "Not yet onboarded"} readOnly /></label>
-        <label>Parent mobile<input name="parentPhone" required inputMode="tel" pattern="[6-9][0-9]{9}" placeholder="10-digit mobile number" /></label>
-        <button className="checkout-button" disabled={submitting || !selectedSchool}>{submitting ? "Placing order…" : `Place order · ₹${subtotal}`}</button>
+        {isFirebaseClientConfigured ? <ParentAuth onChange={setVerifiedPhone} /> : <label>Parent mobile<input name="parentPhone" required inputMode="tel" pattern="[6-9][0-9]{9}" placeholder="10-digit mobile number" /></label>}
+        {isFirebaseClientConfigured && verifiedPhone && selectedSchool && <StudentProfiles schoolId={selectedSchool.id} gradeBand={gradeBand} onChange={setSelectedStudent} />}
+        <button className="checkout-button" disabled={submitting || !selectedSchool || (isFirebaseClientConfigured && (!verifiedPhone || !selectedStudent))}>{submitting ? "Placing order…" : `Place order · ₹${subtotal}`}</button>
         <small>{selectedSchool ? "No payment is collected in this demo." : "Choose an onboarded school to order. School requests will be added next."} The school coordinator confirms the order.</small>
       </form></div>}
 

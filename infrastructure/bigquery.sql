@@ -35,6 +35,15 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.meal_packages` (
 PARTITION BY service_date
 CLUSTER BY city, grade_band, diet_type;
 
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders`
+ADD COLUMN IF NOT EXISTS parent_uid STRING;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders`
+ADD COLUMN IF NOT EXISTS student_id STRING;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders`
+ADD COLUMN IF NOT EXISTS allergies_json STRING;
+
 CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.cities` (
   city_id STRING NOT NULL,
   city_name STRING NOT NULL,
@@ -96,6 +105,7 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.kitchen_capacity_daily`
   kitchen_id STRING NOT NULL,
   capacity_meals INT64 NOT NULL,
   confirmed_meals INT64 NOT NULL,
+  pending_meals INT64,
   waitlisted_meals INT64 NOT NULL,
   cutoff_at TIMESTAMP NOT NULL,
   status STRING NOT NULL,
@@ -103,3 +113,6 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.kitchen_capacity_daily`
 )
 PARTITION BY service_date
 CLUSTER BY kitchen_id, status;
+
+ALTER TABLE `YOUR_PROJECT_ID.school_lunch.kitchen_capacity_daily`
+ADD COLUMN IF NOT EXISTS pending_meals INT64;

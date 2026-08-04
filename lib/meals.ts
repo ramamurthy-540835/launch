@@ -1,5 +1,6 @@
 export type Meal = {
   id: string;
+  serviceDate: string;
   day: string;
   shortDate: string;
   name: string;
@@ -18,6 +19,7 @@ export const cities = ["Chennai", "Madurai", "Trichy", "Coimbatore"];
 export const meals: Meal[] = [
   {
     id: "monday-balanced-meals",
+    serviceDate: "2026-08-10",
     day: "Monday",
     shortDate: "10 Aug",
     name: "Monday Balanced Meals",
@@ -32,6 +34,7 @@ export const meals: Meal[] = [
   },
   {
     id: "tuesday-balanced-meals",
+    serviceDate: "2026-08-11",
     day: "Tuesday",
     shortDate: "11 Aug",
     name: "Tuesday Balanced Meals",
@@ -46,6 +49,7 @@ export const meals: Meal[] = [
   },
   {
     id: "wednesday-balanced-meals",
+    serviceDate: "2026-08-12",
     day: "Wednesday",
     shortDate: "12 Aug",
     name: "Wednesday Balanced Meals",
@@ -60,6 +64,7 @@ export const meals: Meal[] = [
   },
   {
     id: "thursday-balanced-meals",
+    serviceDate: "2026-08-13",
     day: "Thursday",
     shortDate: "13 Aug",
     name: "Thursday Balanced Meals",
@@ -74,6 +79,7 @@ export const meals: Meal[] = [
   },
   {
     id: "friday-balanced-meals",
+    serviceDate: "2026-08-14",
     day: "Friday",
     shortDate: "14 Aug",
     name: "Friday Balanced Meals",

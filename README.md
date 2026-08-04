@@ -33,7 +33,7 @@ Next.js on Cloud Run ── service account / ADC
     └── Cloud Storage: immutable JSON order packets, menu images and exports
 ```
 
-This starter writes one JSON **order packet** to Cloud Storage and a queryable row to BigQuery. With no GCP environment variables, checkout runs safely in demo mode. For production, use Firestore or Cloud SQL as the transactional order source of truth, publish events through Pub/Sub, and stream an analytics copy into BigQuery; BigQuery alone is not an ideal low-latency transactional database.
+This starter creates orders and reserves per-kitchen daily capacity in one Firestore transaction. An idempotency key protects retries from creating a second order or consuming capacity twice. It then writes an immutable JSON **order packet** to Cloud Storage and a queryable analytics row to BigQuery. With no GCP environment variables, checkout runs safely in demo mode.
 
 Recommended resources:
 
@@ -59,17 +59,35 @@ npm run dev
 
 Open `http://localhost:3000`. Leave the placeholder GCP variables unset to use demo checkout.
 
+Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/api/health`; readiness can use `/api/health?ready=1`, which also checks Firestore access. Rate-limit documents in `rate_limits` should have Firestore TTL enabled on `expires_at`.
+
 ## Configure Google Cloud
 
 1. Create a private bucket in `asia-south1` and enable uniform bucket-level access.
 2. Replace `YOUR_PROJECT_ID` in `infrastructure/bigquery.sql`, then run it in BigQuery.
-3. Set `GCP_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ORDERS_TABLE`, and `GCS_BUCKET` on Cloud Run.
-4. Give the Cloud Run service identity the least-privilege roles listed above.
-5. Deploy from the project directory:
+3. Replace `YOUR_PROJECT_ID` in `infrastructure/seed.sql` and run it to load the pilot cities, kitchens, schools and delivery routes. The `MERGE` statements are safe to rerun. The capacity and cutoff values are placeholders and must be approved before launch.
+4. Create a Firestore Native database in `asia-south1`; use the default database or set `FIRESTORE_DATABASE_ID`.
+5. Enable Firebase Phone authentication, register the production domain, configure permitted SMS regions, and create a Firebase Web app.
+6. Set the four `NEXT_PUBLIC_FIREBASE_*` Web app values plus `GCP_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ORDERS_TABLE`, `GCS_BUCKET`, `DEFAULT_DAILY_CAPACITY`, and `ORDER_CUTOFF_IST` on Cloud Run.
+7. Give the Cloud Run service identity Firestore user access plus the least-privilege BigQuery and Storage roles listed above. Production orders require a valid Firebase ID token whenever `GCP_PROJECT_ID` is configured.
+8. Deploy `infrastructure/firestore.rules`. They intentionally deny direct browser access because parent-owned student profiles and orders are accessed only through token-verified server APIs.
+9. Deploy from the project directory:
 
 ```bash
 gcloud run deploy lunchbox --source . --region asia-south1 --allow-unauthenticated
 ```
+
+### Staff roles
+
+The `/admin` kitchen operations screen requires a Firebase custom claim of `admin: true` or a `roles` array containing `"admin"`. The server revalidates the ID token on every admin API call. Kitchen capacity, active status and cutoff values saved there are enforced by the Firestore order transaction; the environment defaults are used only until a kitchen master record exists.
+
+The `/operations` screen uses `roles` plus scoped custom claims: `kitchen_ids`, `school_ids`, and `route_ids`. Kitchen staff receive meal/school production totals, coordinators receive their student manifest and allergy snapshot, and drivers receive assigned stops and upload private delivery proof. An `admin: true` account can access every scope.
+
+### Payments
+
+When the three `RAZORPAY_*` variables are configured, orders begin as `PENDING_PAYMENT` and consume pending—not confirmed—capacity. Checkout creates a Razorpay Order on the server. Fulfilment requires a captured INR payment with matching amount and a valid signature. Configure the Razorpay Dashboard webhook URL as `/api/webhooks/razorpay` and subscribe to `payment.captured`, `order.paid`, `refund.created`, `refund.processed`, and `refund.failed`. Store API and webhook secrets in Secret Manager; the webhook secret must be separate from the API key secret.
+
+Run `POST /api/tasks/expire-payments` every minute from Cloud Scheduler with the `X-Task-Secret` header. It expires abandoned holds after `PAYMENT_HOLD_MINUTES` and releases pending capacity atomically. Deploy `infrastructure/firestore.indexes.json` before enabling this task. Full refunds are available through the admin payments API only before every selected meal cutoff; they use Razorpay refund idempotency and release confirmed capacity exactly once.
 
 ## Important production additions
 
