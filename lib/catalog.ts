@@ -23,6 +23,29 @@ function dateValue(value: unknown) {
   return String(value || "");
 }
 
+function mealDateLabels(serviceDate: string) {
+  const date = new Date(`${serviceDate}T12:00:00+05:30`);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    day: new Intl.DateTimeFormat("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" }).format(date),
+    shortDate: new Intl.DateTimeFormat("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Kolkata",
+    }).format(date),
+  };
+}
+
+function chronologicalMeals(entries: Meal[]) {
+  return [...entries]
+    .map((meal) => {
+      const labels = mealDateLabels(meal.serviceDate);
+      return labels ? { ...meal, ...labels } : meal;
+    })
+    .sort((left, right) => left.serviceDate.localeCompare(right.serviceDate));
+}
+
 export async function getCatalog(): Promise<Catalog> {
   if (!isFirestoreConfigured()) {
     return { cities: fallbackCities, schools: fallbackSchools, meals: fallbackMeals, gradePlans: fallbackGradePlans, source: "fallback" };
@@ -83,7 +106,7 @@ export async function getCatalog(): Promise<Catalog> {
 
   const cities = managedCities.length ? managedCities : fallbackCities;
   const schools = managedSchools.length ? managedSchools : fallbackSchools;
-  const meals = managedMeals.length ? managedMeals : fallbackMeals;
+  const meals = chronologicalMeals(managedMeals.length ? managedMeals : fallbackMeals);
   const gradePlans = Object.keys(managedGradePlans).length ? managedGradePlans : fallbackGradePlans;
   const managedSets = [managedCities.length, managedSchools.length, managedMeals.length, Object.keys(managedGradePlans).length].filter(Boolean).length;
   return { cities, schools, meals, gradePlans, source: managedSets === 4 ? "firestore" : "mixed" };
