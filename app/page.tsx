@@ -62,6 +62,15 @@ export default function Home() {
     }).catch((error) => setCatalogError(error instanceof Error ? error.message : "Catalogue unavailable"));
   }, []);
 
+  useEffect(() => {
+    if (!checkoutOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !submitting) setCheckoutOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [checkoutOpen, submitting]);
+
   const visibleMeals = meals;
 
   const citySchools = schools.filter((school) => school.city === city);
@@ -244,11 +253,11 @@ export default function Home() {
         </>}
       </aside></div>}
 
-      {checkoutOpen && <div className="overlay modal-overlay"><form className="checkout-modal" onSubmit={placeOrder}>
-        <button type="button" className="close" onClick={() => setCheckoutOpen(false)}>×</button><span className="kicker">FINAL STEP</span><h2>Where should we deliver?</h2><p>{gradePlans[gradeBand]?.label} standard · {city} · ₹{subtotal}</p>
+      {checkoutOpen && <div className="overlay modal-overlay" onMouseDown={() => !submitting && setCheckoutOpen(false)}><form className="checkout-modal" onSubmit={placeOrder} onMouseDown={(event) => event.stopPropagation()}>
+        <button type="button" className="close" aria-label="Close checkout" disabled={submitting} onClick={() => setCheckoutOpen(false)}>×</button><span className="kicker">FINAL STEP</span><h2>Where should we deliver?</h2><p>{gradePlans[gradeBand]?.label} standard · {city} · ₹{subtotal}</p>
         {!isFirebaseClientConfigured && <label>Student name<input name="studentName" required minLength={2} placeholder="e.g. Nila Raman" /></label>}
-        <label>School<input value={selectedSchool?.name || "Not yet onboarded"} readOnly /></label>
-        <label>Free-meal delivery day<select name="freeMealId">{meals.filter((meal) => cart[meal.id]).map((meal) => <option key={meal.id} value={meal.id}>{meal.day} · {meal.shortDate}</option>)}</select></label>
+        <label>School<select value={schoolId} onChange={(event) => setSchoolId(event.target.value)}>{citySchools.map((school) => <option value={school.id} key={school.id}>{school.name} · {school.area}</option>)}<option value="request">My school is not listed</option></select></label>
+        <label>Meal delivery day<select name="freeMealId">{meals.filter((meal) => cart[meal.id]).map((meal) => <option key={meal.id} value={meal.id}>{meal.day} · {meal.shortDate}</option>)}</select></label>
         <label>Senior free meals (optional, max 2)<input name="freeSenior" type="number" min="0" max="2" defaultValue="0" /></label>
         <label>Parent free meals (optional, max 2)<input name="freeParent" type="number" min="0" max="2" defaultValue="0" /></label>
         {isFirebaseClientConfigured ? <ParentAuth onChange={setVerifiedPhone} /> : <label>Parent mobile<input name="parentPhone" required inputMode="tel" pattern="[6-9][0-9]{9}" placeholder="10-digit mobile number" /></label>}

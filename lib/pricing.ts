@@ -1,4 +1,4 @@
-export const MARKET_PRICE = 49;
+export const MARKET_PRICE = 39;
 export const SPONSORED_PRICE = 39;
 export const FREE_MEALS_DAILY_CAP = 25;
 export const FREE_MEALS_PER_TYPE_ORDER_CAP = 2;
