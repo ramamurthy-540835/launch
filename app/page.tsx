@@ -179,6 +179,7 @@ export default function Home() {
         </a>
         <nav aria-label="Primary navigation">
           <a href="#menu">Menu</a>
+          <a href="/schools/register">Find school</a>
           <a href="#standards">Our promise</a>
           <a href="#how">How it works</a>
         </nav>
