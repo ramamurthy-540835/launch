@@ -2,6 +2,8 @@
 import InstallAppButton from "@/components/InstallAppButton";
 import ParentAuth from "@/components/ParentAuth";
 import StudentProfiles, { type StudentSelection } from "@/components/StudentProfiles";
+import FranchiseDirectory from "@/components/FranchiseDirectory";
+import type { Franchise } from "@/lib/franchises";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { mealNutrition, type GradePlan, type Meal, type School } from "@/lib/meals";
@@ -29,6 +31,8 @@ export default function Home() {
   const [cities, setCities] = useState<string[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
+  const [franchises, setFranchises] = useState<Franchise[]>([]);
+  const [franchiseError, setFranchiseError] = useState("");
   const [gradePlans, setGradePlans] = useState<Record<string, GradePlan>>({});
   const [catalogError, setCatalogError] = useState("");
   const [city, setCity] = useState("");
@@ -60,6 +64,16 @@ export default function Home() {
         return catalog.schools[0]?.id || "request";
       });
     }).catch((error) => setCatalogError(error instanceof Error ? error.message : "Catalogue unavailable"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/franchises").then(async (response) => {
+      if (!response.ok) throw new Error("Franchise details unavailable");
+      return response.json();
+    }).then((data) => {
+      setFranchises(data.franchises || []);
+      setFranchiseError("");
+    }).catch((error) => setFranchiseError(error instanceof Error ? error.message : "Franchise details unavailable"));
   }, []);
 
   useEffect(() => {
@@ -181,6 +195,7 @@ export default function Home() {
           <a href="#menu">Menu</a>
           <a href="#standards">Our promise</a>
           <a href="#how">How it works</a>
+          <a href="#franchises">Franchises</a>
         </nav>
         <InstallAppButton />
         <button className="cart-button" onClick={() => setCartOpen(true)}>
@@ -240,6 +255,13 @@ export default function Home() {
         <div><span>1</span><b>Choose meals</b><p>Select one day or plan the whole week.</p></div>
         <div><span>2</span><b>Tell us the school</b><p>We group deliveries by campus and lunch break.</p></div>
         <div><span>3</span><b>We deliver fresh</b><p>Every pack arrives sealed, named and on time.</p></div>
+      </section>
+
+      <section className="franchise-section" id="franchises">
+        <div className="section-heading"><div><span className="kicker">CHENNAI FRANCHISE DIRECTORY</span><h2>Find a franchise in Chennai.</h2></div><p>Browse publicly listed franchise businesses by area and category. Contact details are taken from each business’s public listing.</p></div>
+        {franchiseError && <p className="franchise-message" role="alert">{franchiseError}. Please try again shortly.</p>}
+        {!franchiseError && franchises.length === 0 && <p className="franchise-message">The directory will appear after the SerpAPI collection is run with a configured key.</p>}
+        {!franchiseError && franchises.length > 0 && <FranchiseDirectory franchises={franchises} />}
       </section>
 
       <footer><a className="brand" href="#top"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></a><p>Made with care for growing minds in Tamil Nadu.</p><small>Menu is illustrative. Final meal plans should be approved by a qualified pediatric dietitian and the participating school.</small></footer>
