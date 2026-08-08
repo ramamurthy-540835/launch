@@ -162,6 +162,17 @@ Entity APIs:
 
 The existing server-only `GOOGLE_PLACES_API_KEY`/`GOOGLE_MAPS_API_KEY` and `SERPAPI_API_KEY`/`SERP_API_KEY` variables are reused; no new key is required. Run `infrastructure/school-directory.sql` again to add the office/company analytics tables and views. Deploy the two new Firestore composite indexes in `infrastructure/firestore.indexes.json`, and configure Firestore TTL on `entity_search_cache.expires_at`.
 
+## Partner registration administration
+
+`/admin/registrations` is a Firebase-admin-protected acquisition pipeline spanning School, Office, Company, and College registrations. It provides type/status/city/zone/text filters, duplicate indicators, CSV export, registration details, assigned owner, follow-up date, internal notes, and these workflow states:
+
+```text
+Received → Under Review → Contacted → Qualified → Pilot Scheduled → Active
+                                                               ↘ Rejected
+```
+
+Updates are written to the original Firestore registration document, append a workflow-history entry, and create an `audit_logs` record. Contact details are returned only after the server validates the Firebase `admin` custom claim; unauthenticated API requests receive HTTP 403.
+
 ## Run locally
 
 ```bash
