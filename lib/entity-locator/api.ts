@@ -5,6 +5,7 @@ import { buildEntitySearchKeywords, normalizeEntityName } from "@/lib/entity-loc
 import { ENTITY_PROFILES } from "@/lib/entity-locator/profiles";
 import type { EntityType, LocationEntityResult } from "@/lib/entity-locator/types";
 import { firestoreClient } from "@/lib/firestore";
+import { validateRegistrationIntake } from "@/lib/registration-intake";
 import { CITY_BY_CODE, ZONE_BY_CODE, type CityCode, type ZoneCode } from "@/lib/school-locator/territories";
 
 function text(body: Record<string, unknown>, key: string, max: number) { return typeof body[key] === "string" ? body[key].trim().slice(0, max) : ""; }
@@ -59,28 +60,23 @@ export async function registerEntity(entityType: EntityType, body: Record<string
   if (!/^[A-Z0-9-]{8,100}$/i.test(entityId)) return { error: `Select a valid ${entityType} before registering.` };
   const entity = await entityDirectory.getById(entityType, entityId);
   if (!entity || !entity.is_active) return { error: `The selected ${entityType} is unavailable.` };
-  const contactPhone = nullableText(body, "contact_phone", 15);
-  const contactEmail = nullableText(body, "contact_email", 160);
-  if (contactPhone && !/^(?:\+91)?[6-9]\d{9}$/.test(contactPhone.replace(/[\s-]/g, ""))) return { error: "Enter a valid Indian mobile number." };
-  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return { error: "Enter a valid email address." };
   const strengthField = entityType === "college" ? "student_strength" : "employee_strength";
-  const employeeStrength = nullableInteger(body, strengthField);
-  const expectedLunchUsers = nullableInteger(body, "expected_lunch_users");
-  if (Number.isNaN(employeeStrength) || Number.isNaN(expectedLunchUsers) || employeeStrength === 0) return { error: `${entityType === "college" ? "Student" : "Employee"} strength must be a positive whole number and lunch users must be zero or more.` };
-  if (employeeStrength !== null && expectedLunchUsers !== null && expectedLunchUsers > employeeStrength) return { error: `Expected lunch users cannot exceed ${entityType === "college" ? "student" : "employee"} strength.` };
+  const intake = validateRegistrationIntake(body, { strengthField, strengthLabel: entityType === "college" ? "Student strength" : "Employee strength" });
+  if (!intake.data) return { error: intake.error };
   const prefix = entityType === "office" ? "OR" : entityType === "company" ? "CR" : "CLR";
   const referenceId = `${prefix}-${createHash("sha256").update(`${entity.id}:${Date.now()}`).digest("hex").slice(0, 10).toUpperCase()}`;
   const collection = `${entityType}_registrations`;
   await firestoreClient().collection(collection).doc(referenceId).set({
     registration_id: referenceId, ...registrationEntityFields(entity),
     ...(entityType === "office" ? { company_id: nullableText(body, "company_id", 100) } : entityType === "company" ? { primary_office_id: nullableText(body, "primary_office_id", 100) } : {}),
-    contact_name: nullableText(body, "contact_name", 120), contact_designation: nullableText(body, "contact_designation", 120),
-    contact_phone: contactPhone, contact_email: contactEmail,
-    employee_strength: entityType === "college" ? null : employeeStrength,
-    student_strength: entityType === "college" ? employeeStrength : null,
-    expected_lunch_users: expectedLunchUsers, meal_interest: nullableText(body, "meal_interest", 80),
+    contact_name: intake.data.contactName, contact_designation: intake.data.contactDesignation,
+    contact_phone: intake.data.contactPhone, contact_email: intake.data.contactEmail,
+    employee_strength: entityType === "college" ? null : intake.data.strength,
+    student_strength: entityType === "college" ? intake.data.strength : null,
+    expected_lunch_users: intake.data.expectedLunchUsers, working_days: intake.data.workingDays,
+    consent_given: true, consent_at: FieldValue.serverTimestamp(), meal_interest: nullableText(body, "meal_interest", 80),
     existing_food_vendor: nullableText(body, "existing_food_vendor", 160), preferred_meal_time: nullableText(body, "preferred_meal_time", 40),
-    meal_price_range: nullableText(body, "meal_price_range", 80), status: "RECEIVED", created_at: FieldValue.serverTimestamp(),
+    meal_price_range: nullableText(body, "meal_price_range", 80), status: "RECEIVED", registration_source: "public_form", created_at: FieldValue.serverTimestamp(),
     office_type: entityType === "office" ? nullableText(body, "office_type", 100) : null,
     employees_in_office_daily: entityType === "office" ? nullableInteger(body, "employees_in_office_daily") : null,
     lunch_shift_count: entityType === "office" ? nullableInteger(body, "lunch_shift_count") : null,

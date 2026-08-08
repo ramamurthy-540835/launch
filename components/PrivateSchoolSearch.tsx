@@ -40,6 +40,7 @@ export default function PrivateSchoolSearch() {
   const [manualSaving, setManualSaving] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState("");
+  const [submittedReference, setSubmittedReference] = useState("");
 
   const city = useMemo(() => cityCode ? CITY_BY_CODE.get(cityCode) : null, [cityCode]);
   const zones = city?.zones || [];
@@ -96,6 +97,7 @@ export default function PrivateSchoolSearch() {
   function resetSelection() {
     setSelected(null);
     setRegistrationMessage("");
+    setSubmittedReference("");
     setManualOpen(false);
   }
 
@@ -107,6 +109,7 @@ export default function PrivateSchoolSearch() {
     setMessage("");
     setManualOpen(false);
     setRegistrationMessage("");
+    setSubmittedReference("");
   }
 
   function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -157,18 +160,25 @@ export default function PrivateSchoolSearch() {
 
   async function registerSchool(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || submittedReference) return;
+    const form = new FormData(event.currentTarget);
+    const strength = form.get("student_strength") ? Number(form.get("student_strength")) : null;
+    const expected = form.get("expected_lunch_users") ? Number(form.get("expected_lunch_users")) : null;
+    if (strength !== null && expected !== null && expected > strength) {
+      setRegistrationMessage("Expected lunch users cannot exceed student strength.");
+      return;
+    }
     setRegistering(true);
     setRegistrationMessage("");
     try {
       const response = await fetch("/api/school-registration", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ school_id: selected.id }),
+        body: JSON.stringify({ ...Object.fromEntries(form.entries()), school_id: selected.id }),
       });
       const data = await response.json() as { referenceId?: string; error?: string };
       if (!response.ok) throw new Error(data.error || "Unable to request school registration.");
-      setRegistrationMessage(`Registration request received. Reference: ${data.referenceId}`);
+      setSubmittedReference(data.referenceId || "Received");
     } catch (error) {
       setRegistrationMessage(error instanceof Error ? error.message : "Unable to request school registration.");
     } finally {
@@ -188,6 +198,8 @@ export default function PrivateSchoolSearch() {
         <h1>Find your school.</h1>
         <p>Select your territory, then type the first three letters of a private school name.</p>
       </div>
+
+      <div className="registration-progress" aria-label="Registration progress"><span className="complete">1 <b>Choose location</b></span><span className={selected ? "complete" : "active"}>2 <b>Select school</b></span><span className={selected ? "active" : ""}>3 <b>Contact & meals</b></span></div>
 
       <section className="school-location-card" aria-labelledby="school-location-heading">
         <div className="school-card-title"><span>01</span><div><h2 id="school-location-heading">School location</h2><p>Four cities · twenty LunchBox search territories</p></div></div>
@@ -273,12 +285,28 @@ export default function PrivateSchoolSearch() {
           <input type="hidden" name="school_longitude" value={registrationFields.school_longitude ?? ""} />
           <input type="hidden" name="provider_place_id" value={registrationFields.provider_place_id} />
         </div>
-        <div className="selected-school-actions">
+        <div className="entity-form-section school-intake-section"><h3>Contact details</h3><p className="registration-required-note">Fields marked * are required. We use these details only to discuss this registration.</p><div className="selected-school-fields">
+          <label>Contact name *<input name="contact_name" required minLength={2} maxLength={120} autoComplete="name" /></label>
+          <label>Designation<input name="contact_designation" maxLength={120} autoComplete="organization-title" /></label>
+          <label>Mobile number *<input name="contact_phone" required inputMode="tel" autoComplete="tel" placeholder="9876543210" pattern="(?:\+91)?[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number" /></label>
+          <label>Email<input name="contact_email" type="email" maxLength={160} autoComplete="email" /></label>
+        </div></div>
+        <div className="entity-form-section school-intake-section"><h3>School & meal opportunity</h3><p className="registration-required-note">Optional estimates help LunchBox prepare the right proposal. They can be updated later.</p><div className="selected-school-fields">
+          <label>Student strength<input name="student_strength" type="number" min="1" step="1" inputMode="numeric" /></label>
+          <label>Expected lunch users<input name="expected_lunch_users" type="number" min="0" step="1" inputMode="numeric" /></label>
+          <label>Working days<select name="working_days" defaultValue=""><option value="">Select</option><option value="Monday–Friday">Monday–Friday</option><option value="Monday–Saturday">Monday–Saturday</option><option value="All days">All days</option><option value="Varies">Varies</option></select></label>
+          <label>Preferred lunch time<input name="preferred_meal_time" type="time" /></label>
+          <label>Existing food vendor<input name="existing_food_vendor" maxLength={160} /></label>
+          <label>Meal interest<select name="meal_interest" defaultValue=""><option value="">Select</option><option value="daily_lunch">Daily lunch</option><option value="subscription">Subscription</option><option value="events">Events / bulk meals</option><option value="exploring">Exploring</option></select></label>
+        </div></div>
+        <label className="registration-consent"><input name="consent" type="checkbox" required /> <span>I confirm these details are accurate and allow LunchBox to contact me about this registration.</span></label>
+        {!submittedReference && <div className="selected-school-actions">
           <button className="checkout-button" disabled={registering}>{registering ? "Submitting…" : "Request school registration"}</button>
           <a href={mapsUrl(selected)} target="_blank" rel="noreferrer">Open in Google Maps ↗</a>
           <button type="button" className="change-school-button" onClick={() => { setSelected(null); setQuery(""); }}>Change school</button>
-        </div>
-        {registrationMessage && <p className="school-registration-message" role="status">{registrationMessage}</p>}
+        </div>}
+        {registrationMessage && <p className="school-registration-message registration-error-message" role="alert">{registrationMessage}</p>}
+        {submittedReference && <div className="registration-success-card" role="status"><span>Request received</span><h3>Thank you. LunchBox will contact you shortly.</h3><p>Save this reference: <b>{submittedReference}</b></p><button type="button" onClick={() => { setSelected(null); setQuery(""); setSubmittedReference(""); setRegistrationMessage(""); }}>Register another school</button></div>}
       </form>}
     </section>
   </main>;
