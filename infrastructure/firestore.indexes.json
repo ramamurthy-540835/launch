@@ -15,6 +15,33 @@
         { "fieldPath": "route_id", "order": "ASCENDING" },
         { "fieldPath": "service_date", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "schools",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "city_code", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" },
+        { "fieldPath": "search_keywords", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "offices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "city_code", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" },
+        { "fieldPath": "search_keywords", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "companies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "city_code", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" },
+        { "fieldPath": "search_keywords", "arrayConfig": "CONTAINS" }
+      ]
     }
   ],
   "fieldOverrides": []
