@@ -162,12 +162,6 @@ export default function PrivateSchoolSearch() {
     event.preventDefault();
     if (!selected || submittedReference) return;
     const form = new FormData(event.currentTarget);
-    const strength = form.get("student_strength") ? Number(form.get("student_strength")) : null;
-    const expected = form.get("expected_lunch_users") ? Number(form.get("expected_lunch_users")) : null;
-    if (strength !== null && expected !== null && expected > strength) {
-      setRegistrationMessage("Expected lunch users cannot exceed student strength.");
-      return;
-    }
     setRegistering(true);
     setRegistrationMessage("");
     try {
@@ -189,17 +183,17 @@ export default function PrivateSchoolSearch() {
   return <main className="school-search-page">
     <header className="topbar">
       <Link className="brand" href="/"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></Link>
-      <nav className="registration-mini-nav" aria-label="Registration types"><Link className="active" href="/schools/register">School</Link><Link href="/register/office-company">Office / Company</Link><Link href="/register/college">College</Link></nav>
+      <nav className="registration-mini-nav" aria-label="Meal registration types"><Link className="active" href="/schools/register">Parent / Child</Link><Link href="/register/college">College Student</Link><Link href="/register/office-company">Office Worker</Link></nav>
     </header>
 
     <section className="school-search-shell">
       <div className="school-search-heading">
-        <span className="kicker">SCHOOL REGISTRATION</span>
-        <h1>Find your school.</h1>
-        <p>Select your territory, then type the first three letters of a private school name.</p>
+        <span className="kicker">CHILD MEAL REGISTRATION</span>
+        <h1>Register your child for school meals.</h1>
+        <p>Find your child&apos;s school, then enter the parent and child details needed for meal service.</p>
       </div>
 
-      <div className="registration-progress" aria-label="Registration progress"><span className="complete">1 <b>Choose location</b></span><span className={selected ? "complete" : "active"}>2 <b>Select school</b></span><span className={selected ? "active" : ""}>3 <b>Contact & meals</b></span></div>
+      <div className="registration-progress" aria-label="Registration progress"><span className={selected ? "complete" : "active"}>1 <b>Find school</b></span><span className={selected ? "active" : ""}>2 <b>Parent & child</b></span><span>3 <b>Meal preferences</b></span></div>
 
       <section className="school-location-card" aria-labelledby="school-location-heading">
         <div className="school-card-title"><span>01</span><div><h2 id="school-location-heading">School location</h2><p>Four cities · twenty LunchBox search territories</p></div></div>
@@ -285,28 +279,32 @@ export default function PrivateSchoolSearch() {
           <input type="hidden" name="school_longitude" value={registrationFields.school_longitude ?? ""} />
           <input type="hidden" name="provider_place_id" value={registrationFields.provider_place_id} />
         </div>
-        <div className="entity-form-section school-intake-section"><h3>Contact details</h3><p className="registration-required-note">Fields marked * are required. We use these details only to discuss this registration.</p><div className="selected-school-fields">
-          <label>Contact name *<input name="contact_name" required minLength={2} maxLength={120} autoComplete="name" /></label>
-          <label>Designation<input name="contact_designation" maxLength={120} autoComplete="organization-title" /></label>
-          <label>Mobile number *<input name="contact_phone" required inputMode="tel" autoComplete="tel" placeholder="9876543210" pattern="(?:\+91)?[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number" /></label>
-          <label>Email<input name="contact_email" type="email" maxLength={160} autoComplete="email" /></label>
+        <div className="entity-form-section school-intake-section"><h3>Parent or guardian details</h3><p className="registration-required-note">We will use these details for meal updates and important allergy-related communication.</p><div className="selected-school-fields">
+          <label>Parent / guardian name *<input name="parent_name" required minLength={2} maxLength={120} autoComplete="name" /></label>
+          <label>Relationship<select name="relationship" defaultValue="parent"><option value="parent">Parent</option><option value="guardian">Guardian</option><option value="other">Other caregiver</option></select></label>
+          <label>Mobile number *<input name="parent_phone" required inputMode="tel" autoComplete="tel" placeholder="9876543210" pattern="(?:\+91)?[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number" /></label>
+          <label>Email<input name="parent_email" type="email" maxLength={160} autoComplete="email" /></label>
         </div></div>
-        <div className="entity-form-section school-intake-section"><h3>School & meal opportunity</h3><p className="registration-required-note">Optional estimates help LunchBox prepare the right proposal. They can be updated later.</p><div className="selected-school-fields">
-          <label>Student strength<input name="student_strength" type="number" min="1" step="1" inputMode="numeric" /></label>
-          <label>Expected lunch users<input name="expected_lunch_users" type="number" min="0" step="1" inputMode="numeric" /></label>
-          <label>Working days<select name="working_days" defaultValue=""><option value="">Select</option><option value="Monday–Friday">Monday–Friday</option><option value="Monday–Saturday">Monday–Saturday</option><option value="All days">All days</option><option value="Varies">Varies</option></select></label>
-          <label>Preferred lunch time<input name="preferred_meal_time" type="time" /></label>
-          <label>Existing food vendor<input name="existing_food_vendor" maxLength={160} /></label>
-          <label>Meal interest<select name="meal_interest" defaultValue=""><option value="">Select</option><option value="daily_lunch">Daily lunch</option><option value="subscription">Subscription</option><option value="events">Events / bulk meals</option><option value="exploring">Exploring</option></select></label>
+        <div className="entity-form-section school-intake-section"><h3>Child details</h3><p className="registration-required-note">Enter the details of the child who will receive the meals.</p><div className="selected-school-fields">
+          <label>Child&apos;s full name *<input name="child_name" required minLength={2} maxLength={120} /></label>
+          <label>Age<input name="child_age" type="number" min="3" max="21" step="1" inputMode="numeric" /></label>
+          <label>Class / grade *<select name="grade" required defaultValue=""><option value="" disabled>Select class</option><option value="LKG">LKG</option><option value="UKG">UKG</option>{Array.from({ length: 12 }, (_, index) => <option value={String(index + 1)} key={index + 1}>Class {index + 1}</option>)}</select></label>
+          <label>Section<input name="section" maxLength={30} placeholder="e.g. A" /></label>
         </div></div>
-        <label className="registration-consent"><input name="consent" type="checkbox" required /> <span>I confirm these details are accurate and allow LunchBox to contact me about this registration.</span></label>
+        <div className="entity-form-section school-intake-section"><h3>Child&apos;s meal preferences</h3><p className="registration-required-note">Please list food allergies clearly. LunchBox will verify meal suitability before service begins.</p><div className="selected-school-fields">
+          <label>Dietary preference<select name="dietary_preference" defaultValue="vegetarian"><option value="vegetarian">Vegetarian</option><option value="vegan">Vegan</option><option value="no_preference">No preference</option></select></label>
+          <label>Meal plan interest<select name="meal_plan_interest" defaultValue=""><option value="">Select</option><option value="daily_lunch">Daily school lunch</option><option value="weekly_plan">Weekly plan</option><option value="monthly_plan">Monthly subscription</option><option value="trial">Trial meal</option></select></label>
+          <label>School lunch time<input name="preferred_meal_time" type="time" /></label>
+          <label className="selected-address">Allergies or dietary notes<textarea name="allergies" maxLength={500} placeholder="List allergies and foods to avoid. Leave blank if none." /></label>
+        </div></div>
+        <label className="registration-consent"><input name="consent" type="checkbox" required /> <span>I confirm I am authorized to register this child, the allergy information is accurate, and LunchBox may contact me about the child&apos;s meal registration.</span></label>
         {!submittedReference && <div className="selected-school-actions">
-          <button className="checkout-button" disabled={registering}>{registering ? "Submitting…" : "Request school registration"}</button>
+          <button className="checkout-button" disabled={registering}>{registering ? "Submitting…" : "Submit child meal registration"}</button>
           <a href={mapsUrl(selected)} target="_blank" rel="noreferrer">Open in Google Maps ↗</a>
           <button type="button" className="change-school-button" onClick={() => { setSelected(null); setQuery(""); }}>Change school</button>
         </div>}
         {registrationMessage && <p className="school-registration-message registration-error-message" role="alert">{registrationMessage}</p>}
-        {submittedReference && <div className="registration-success-card" role="status"><span>Request received</span><h3>Thank you. LunchBox will contact you shortly.</h3><p>Save this reference: <b>{submittedReference}</b></p><button type="button" onClick={() => { setSelected(null); setQuery(""); setSubmittedReference(""); setRegistrationMessage(""); }}>Register another school</button></div>}
+        {submittedReference && <div className="registration-success-card" role="status"><span>Child meal registration received</span><h3>Thank you. Your child&apos;s details have been saved.</h3><p>Save this reference: <b>{submittedReference}</b></p><button type="button" onClick={() => { setSelected(null); setQuery(""); setSubmittedReference(""); setRegistrationMessage(""); }}>Register another child</button></div>}
       </form>}
     </section>
   </main>;

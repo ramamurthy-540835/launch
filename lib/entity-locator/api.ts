@@ -5,15 +5,10 @@ import { buildEntitySearchKeywords, normalizeEntityName } from "@/lib/entity-loc
 import { ENTITY_PROFILES } from "@/lib/entity-locator/profiles";
 import type { EntityType, LocationEntityResult } from "@/lib/entity-locator/types";
 import { firestoreClient } from "@/lib/firestore";
-import { validateRegistrationIntake } from "@/lib/registration-intake";
+import { validateMealEnrollment } from "@/lib/meal-enrollment";
 import { CITY_BY_CODE, ZONE_BY_CODE, type CityCode, type ZoneCode } from "@/lib/school-locator/territories";
 
 function text(body: Record<string, unknown>, key: string, max: number) { return typeof body[key] === "string" ? body[key].trim().slice(0, max) : ""; }
-function nullableText(body: Record<string, unknown>, key: string, max: number) { return text(body, key, max) || null; }
-function nullableInteger(body: Record<string, unknown>, key: string) {
-  const value = body[key]; if (value === "" || value === null || value === undefined) return null;
-  const number = Number(value); return Number.isInteger(number) && number >= 0 ? number : NaN;
-}
 
 export function createManualEntity(entityType: EntityType, body: Record<string, unknown>): { entity?: LocationEntityResult; error?: string } {
   const name = text(body, "display_name", 160);
@@ -55,38 +50,26 @@ export function registrationEntityFields(entity: LocationEntityResult) {
     source_place_id: entity.provider_place_id,
   };
 }
-export async function registerEntity(entityType: EntityType, body: Record<string, unknown>, defer: (task: () => Promise<void>) => void = (task) => queueMicrotask(() => void task().catch(() => undefined))): Promise<RegistrationResult> {
+export async function registerIndividualMealEnrollment(entityType: EntityType, body: Record<string, unknown>, defer: (task: () => Promise<void>) => void = (task) => queueMicrotask(() => void task().catch(() => undefined))): Promise<RegistrationResult> {
   const entityId = text(body, `${entityType}_id`, 100);
   if (!/^[A-Z0-9-]{8,100}$/i.test(entityId)) return { error: `Select a valid ${entityType} before registering.` };
   const entity = await entityDirectory.getById(entityType, entityId);
   if (!entity || !entity.is_active) return { error: `The selected ${entityType} is unavailable.` };
-  const strengthField = entityType === "college" ? "student_strength" : "employee_strength";
-  const intake = validateRegistrationIntake(body, { strengthField, strengthLabel: entityType === "college" ? "Student strength" : "Employee strength" });
+  const profile = entityType === "college" ? "college_student" : "office_worker";
+  const intake = validateMealEnrollment(body, profile);
   if (!intake.data) return { error: intake.error };
-  const prefix = entityType === "office" ? "OR" : entityType === "company" ? "CR" : "CLR";
-  const referenceId = `${prefix}-${createHash("sha256").update(`${entity.id}:${Date.now()}`).digest("hex").slice(0, 10).toUpperCase()}`;
-  const collection = `${entityType}_registrations`;
-  await firestoreClient().collection(collection).doc(referenceId).set({
+  const prefix = entityType === "college" ? "COL" : "EMP";
+  const referenceId = `${prefix}-${createHash("sha256").update(`${entity.id}:${intake.data.contactPhone}:${Date.now()}`).digest("hex").slice(0, 10).toUpperCase()}`;
+  await firestoreClient().collection("meal_enrollment_requests").doc(referenceId).set({
     registration_id: referenceId, ...registrationEntityFields(entity),
-    ...(entityType === "office" ? { company_id: nullableText(body, "company_id", 100) } : entityType === "company" ? { primary_office_id: nullableText(body, "primary_office_id", 100) } : {}),
-    contact_name: intake.data.contactName, contact_designation: intake.data.contactDesignation,
-    contact_phone: intake.data.contactPhone, contact_email: intake.data.contactEmail,
-    employee_strength: entityType === "college" ? null : intake.data.strength,
-    student_strength: entityType === "college" ? intake.data.strength : null,
-    expected_lunch_users: intake.data.expectedLunchUsers, working_days: intake.data.workingDays,
-    consent_given: true, consent_at: FieldValue.serverTimestamp(), meal_interest: nullableText(body, "meal_interest", 80),
-    existing_food_vendor: nullableText(body, "existing_food_vendor", 160), preferred_meal_time: nullableText(body, "preferred_meal_time", 40),
-    meal_price_range: nullableText(body, "meal_price_range", 80), status: "RECEIVED", registration_source: "public_form", created_at: FieldValue.serverTimestamp(),
-    office_type: entityType === "office" ? nullableText(body, "office_type", 100) : null,
-    employees_in_office_daily: entityType === "office" ? nullableInteger(body, "employees_in_office_daily") : null,
-    lunch_shift_count: entityType === "office" ? nullableInteger(body, "lunch_shift_count") : null,
-    cafeteria_available: entityType === "office" ? nullableText(body, "cafeteria_available", 20) : null,
-    company_type: entityType === "company" ? nullableText(body, "company_type", 100) : null,
-    industry: entityType === "company" ? nullableText(body, "industry", 120) : null,
-    number_of_offices: entityType === "company" ? nullableInteger(body, "number_of_offices") : null,
-    city_employee_strength: entityType === "company" ? nullableInteger(body, "city_employee_strength") : null,
-    college_type: entityType === "college" ? nullableText(body, "college_type", 100) : null,
-    student_hostel_available: entityType === "college" ? nullableText(body, "student_hostel_available", 20) : null,
+    registration_type: entityType === "college" ? "COLLEGE_STUDENT" : "OFFICE_WORKER",
+    location_entity_type: entityType,
+    person_name: intake.data.personName,
+    contact_phone: intake.data.contactPhone,
+    contact_email: intake.data.contactEmail,
+    ...intake.data.fields,
+    consent_at: FieldValue.serverTimestamp(), status: "RECEIVED", registration_source: "public_form",
+    created_at: FieldValue.serverTimestamp(), updated_at: FieldValue.serverTimestamp(),
   });
   defer(async () => { await entityAnalytics.recordRegistration(entity, entity.provider).catch(() => undefined); });
   return { referenceId, status: "RECEIVED" };

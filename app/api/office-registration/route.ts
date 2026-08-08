@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { registerEntity } from "@/lib/entity-locator/api";
+import { registerIndividualMealEnrollment } from "@/lib/entity-locator/api";
 import { enforceRateLimit, RateLimitError } from "@/lib/hardening";
 import { logInfo } from "@/lib/logging";
 export const runtime = "nodejs";
@@ -7,9 +7,9 @@ export async function POST(request: Request) {
   try {
     const identity = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     await enforceRateLimit("office_registration", identity, 5, 3600);
-    const result = await registerEntity("office", await request.json() as Record<string, unknown>, (task) => after(task));
+    const result = await registerIndividualMealEnrollment("office", await request.json() as Record<string, unknown>, (task) => after(task));
     if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
-    logInfo("entity_registered", { entity_type: "office" });
+    logInfo("meal_enrollment_received", { registration_type: "office_worker", location_entity_type: "office" });
     return NextResponse.json(result, { status: 201 });
-  } catch (error) { return NextResponse.json({ error: error instanceof RateLimitError ? error.message : "Unable to register this office right now." }, { status: error instanceof RateLimitError ? 429 : 500 }); }
+  } catch (error) { return NextResponse.json({ error: error instanceof RateLimitError ? error.message : "Unable to complete this meal registration right now." }, { status: error instanceof RateLimitError ? 429 : 500 }); }
 }
