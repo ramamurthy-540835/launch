@@ -3,8 +3,8 @@ import type { EntityType } from "@/lib/entity-locator/types";
 export type EntitySearchProfile = {
   entityType: EntityType;
   label: string;
-  collection: "offices" | "companies";
-  idPrefix: "OFFICE" | "COMPANY";
+  collection: "offices" | "companies" | "colleges";
+  idPrefix: "OFFICE" | "COMPANY" | "COLLEGE";
   googleQueryTerm: string;
   serpQueryTerms: readonly string[];
   preferredTypes: readonly string[];
@@ -35,8 +35,19 @@ export const ENTITY_PROFILES: Record<EntityType, EntitySearchProfile> = {
     includePattern: /\b(company|companies|private limited|pvt\.? ltd|limited|ltd|llp|technologies|technology|solutions|industries|enterprise|consulting|logistics|software|services|systems|manufacturing|corporation)\b/i,
     excludePattern: /\b(school|college|university|hospital|restaurant|cafe|apartment|temple|salon|gym|cinema|theatre|dance|music|studio|fitness)\b/i,
   },
+  college: {
+    entityType: "college",
+    label: "College",
+    collection: "colleges",
+    idPrefix: "COLLEGE",
+    googleQueryTerm: "college",
+    serpQueryTerms: ["college", "private college"],
+    preferredTypes: ["college", "university", "educational_institution"],
+    includePattern: /\b(college|polytechnic|institute of technology|engineering institute|arts and science|medical institute|management institute|academy of higher education)\b/i,
+    excludePattern: /\b(school|tuition|coaching|training centre|training center|driving|dance|music|office|restaurant|hospital|shop|store)\b/i,
+  },
 };
 
 export function isEntityType(value: string): value is EntityType {
-  return value === "office" || value === "company";
+  return value === "office" || value === "company" || value === "college";
 }

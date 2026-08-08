@@ -179,7 +179,7 @@ export default function PrivateSchoolSearch() {
   return <main className="school-search-page">
     <header className="topbar">
       <Link className="brand" href="/"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></Link>
-      <nav className="registration-mini-nav" aria-label="Registration types"><Link className="active" href="/schools/register">School</Link><Link href="/register/office">Office</Link><Link href="/register/company">Company</Link></nav>
+      <nav className="registration-mini-nav" aria-label="Registration types"><Link className="active" href="/schools/register">School</Link><Link href="/register/office-company">Office / Company</Link><Link href="/register/college">College</Link></nav>
     </header>
 
     <section className="school-search-shell">

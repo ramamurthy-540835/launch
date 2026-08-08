@@ -122,6 +122,13 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_directory.company_master` (
   confidence FLOAT64, category STRING, created_at TIMESTAMP NOT NULL, updated_at TIMESTAMP NOT NULL
 ) CLUSTER BY city_code, zone_code, verification_status;
 
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_directory.college_master` (
+  college_id STRING NOT NULL, display_name STRING NOT NULL, formatted_address STRING,
+  city_code STRING NOT NULL, zone_code STRING NOT NULL, locality STRING, postal_code STRING,
+  latitude FLOAT64, longitude FLOAT64, provider STRING NOT NULL, verification_status STRING NOT NULL,
+  confidence FLOAT64, category STRING, created_at TIMESTAMP NOT NULL, updated_at TIMESTAMP NOT NULL
+) CLUSTER BY city_code, zone_code, verification_status;
+
 CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_directory.entity_search_events` (
   event_timestamp TIMESTAMP NOT NULL, entity_type STRING NOT NULL, city_code STRING NOT NULL, zone_code STRING,
   query_prefix STRING NOT NULL, result_count INT64 NOT NULL, provider_used STRING NOT NULL, cache_hit BOOL NOT NULL, latency_ms INT64 NOT NULL
@@ -142,12 +149,21 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_directory.company_registratio
   zone_code STRING NOT NULL, registration_source STRING NOT NULL
 ) PARTITION BY DATE(event_timestamp) CLUSTER BY city_code, zone_code;
 
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_directory.college_registration_events` (
+  event_timestamp TIMESTAMP NOT NULL, college_id STRING NOT NULL, city_code STRING NOT NULL,
+  zone_code STRING NOT NULL, registration_source STRING NOT NULL
+) PARTITION BY DATE(event_timestamp) CLUSTER BY city_code, zone_code;
+
 CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_directory.offices_by_city` AS
 SELECT city_code, COUNT(*) office_count FROM `YOUR_PROJECT_ID.school_directory.office_master` GROUP BY city_code;
 CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_directory.offices_by_zone` AS
 SELECT city_code, zone_code, COUNT(*) office_count FROM `YOUR_PROJECT_ID.school_directory.office_master` GROUP BY city_code, zone_code;
 CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_directory.companies_by_city` AS
 SELECT city_code, COUNT(*) company_count FROM `YOUR_PROJECT_ID.school_directory.company_master` GROUP BY city_code;
+CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_directory.colleges_by_city` AS
+SELECT city_code, COUNT(*) college_count FROM `YOUR_PROJECT_ID.school_directory.college_master` GROUP BY city_code;
+CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_directory.colleges_by_zone` AS
+SELECT city_code, zone_code, COUNT(*) college_count FROM `YOUR_PROJECT_ID.school_directory.college_master` GROUP BY city_code, zone_code;
 CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.school_directory.franchise_office_coverage` AS
 SELECT city_code, zone_code, COUNT(*) office_count, COUNTIF(company_id IS NOT NULL) linked_company_offices
 FROM `YOUR_PROJECT_ID.school_directory.office_master` GROUP BY city_code, zone_code;
@@ -159,8 +175,10 @@ WITH territories AS (
   SELECT city_code, zone_code FROM `YOUR_PROJECT_ID.school_directory.school_master`
   UNION DISTINCT SELECT city_code, zone_code FROM `YOUR_PROJECT_ID.school_directory.office_master`
   UNION DISTINCT SELECT city_code, zone_code FROM `YOUR_PROJECT_ID.school_directory.company_master`
+  UNION DISTINCT SELECT city_code, zone_code FROM `YOUR_PROJECT_ID.school_directory.college_master`
 )
 SELECT city_code, zone_code,
   (SELECT SUM(estimated_lunch_students) FROM `YOUR_PROJECT_ID.school_directory.school_master` s WHERE s.city_code=t.city_code AND s.zone_code=t.zone_code) schools_meals,
-  CAST(NULL AS INT64) office_meals, CAST(NULL AS INT64) company_meals, CAST(NULL AS INT64) combined_meals
+  CAST(NULL AS INT64) office_meals, CAST(NULL AS INT64) company_meals,
+  CAST(NULL AS INT64) college_meals, CAST(NULL AS INT64) combined_meals
 FROM territories t;

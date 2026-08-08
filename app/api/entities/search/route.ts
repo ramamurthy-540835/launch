@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const correlationId = requestId(request);
   try {
     const url = new URL(request.url); const entityType = url.searchParams.get("type") || "";
-    if (!isEntityType(entityType)) return NextResponse.json({ error: "Choose office or company." }, { status: 400 });
+    if (!isEntityType(entityType)) return NextResponse.json({ error: "Choose office, company or college." }, { status: 400 });
     const cityCode = (url.searchParams.get("city") || "").toUpperCase() as CityCode;
     const zoneCode = (url.searchParams.get("zone") || "").toUpperCase() as ZoneCode;
     const query = (url.searchParams.get("q") || "").trim(); const city = CITY_BY_CODE.get(cityCode); const zone = ZONE_BY_CODE.get(zoneCode);

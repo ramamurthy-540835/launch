@@ -20,7 +20,7 @@ export class BigQueryEntityAnalytics implements EntityAnalytics {
   async recordEntities(entityType: EntityType, entities: LocationEntityResult[]) {
     if (!entities.length) return;
     const { bigquery, projectId, datasetId, location } = client();
-    const table = entityType === "office" ? "office_master" : "company_master";
+    const table = `${entityType}_master`;
     const idColumn = `${entityType}_id`;
     const relationshipUpdate = entityType === "office" ? ",company_id=S.company_id" : "";
     const relationshipColumn = entityType === "office" ? ",company_id" : "";

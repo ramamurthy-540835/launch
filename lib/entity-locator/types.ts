@@ -1,6 +1,6 @@
 import type { CityCode, ZoneCode } from "@/lib/school-locator/territories";
 
-export type EntityType = "office" | "company";
+export type EntityType = "office" | "company" | "college";
 export type EntityProvider = "google" | "serpapi" | "manual";
 export type VerificationStatus = "verified_external" | "likely" | "unverified";
 
@@ -40,6 +40,7 @@ export type LocationEntityResult = {
   gstin?: string | null;
   cin?: string | null;
   employee_strength?: number | null;
+  student_strength?: number | null;
 };
 
 export type EntitySearchParams = {

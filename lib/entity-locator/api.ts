@@ -35,7 +35,7 @@ export function createManualEntity(entityType: EntityType, body: Record<string, 
     provider_place_id: null, category: null, verification_status: "unverified", confidence: 0.5, is_active: true,
     search_keywords: buildEntitySearchKeywords(name), zone_resolution: "locality", company_id: null, legal_name: null,
     company_type: null, industry: null, primary_office_id: null, website: null, phone: null, email: null, gstin: null, cin: null,
-    employee_strength: null,
+    employee_strength: null, student_strength: null,
   } };
 }
 
@@ -63,18 +63,21 @@ export async function registerEntity(entityType: EntityType, body: Record<string
   const contactEmail = nullableText(body, "contact_email", 160);
   if (contactPhone && !/^(?:\+91)?[6-9]\d{9}$/.test(contactPhone.replace(/[\s-]/g, ""))) return { error: "Enter a valid Indian mobile number." };
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return { error: "Enter a valid email address." };
-  const employeeStrength = nullableInteger(body, "employee_strength");
+  const strengthField = entityType === "college" ? "student_strength" : "employee_strength";
+  const employeeStrength = nullableInteger(body, strengthField);
   const expectedLunchUsers = nullableInteger(body, "expected_lunch_users");
-  if (Number.isNaN(employeeStrength) || Number.isNaN(expectedLunchUsers) || employeeStrength === 0) return { error: "Employee strength must be a positive whole number and lunch users must be zero or more." };
-  if (employeeStrength !== null && expectedLunchUsers !== null && expectedLunchUsers > employeeStrength) return { error: "Expected lunch users cannot exceed employee strength." };
-  const prefix = entityType === "office" ? "OR" : "CR";
+  if (Number.isNaN(employeeStrength) || Number.isNaN(expectedLunchUsers) || employeeStrength === 0) return { error: `${entityType === "college" ? "Student" : "Employee"} strength must be a positive whole number and lunch users must be zero or more.` };
+  if (employeeStrength !== null && expectedLunchUsers !== null && expectedLunchUsers > employeeStrength) return { error: `Expected lunch users cannot exceed ${entityType === "college" ? "student" : "employee"} strength.` };
+  const prefix = entityType === "office" ? "OR" : entityType === "company" ? "CR" : "CLR";
   const referenceId = `${prefix}-${createHash("sha256").update(`${entity.id}:${Date.now()}`).digest("hex").slice(0, 10).toUpperCase()}`;
-  const collection = entityType === "office" ? "office_registrations" : "company_registrations";
+  const collection = `${entityType}_registrations`;
   await firestoreClient().collection(collection).doc(referenceId).set({
     registration_id: referenceId, ...registrationEntityFields(entity),
-    ...(entityType === "office" ? { company_id: nullableText(body, "company_id", 100) } : { primary_office_id: nullableText(body, "primary_office_id", 100) }),
+    ...(entityType === "office" ? { company_id: nullableText(body, "company_id", 100) } : entityType === "company" ? { primary_office_id: nullableText(body, "primary_office_id", 100) } : {}),
     contact_name: nullableText(body, "contact_name", 120), contact_designation: nullableText(body, "contact_designation", 120),
-    contact_phone: contactPhone, contact_email: contactEmail, employee_strength: employeeStrength,
+    contact_phone: contactPhone, contact_email: contactEmail,
+    employee_strength: entityType === "college" ? null : employeeStrength,
+    student_strength: entityType === "college" ? employeeStrength : null,
     expected_lunch_users: expectedLunchUsers, meal_interest: nullableText(body, "meal_interest", 80),
     existing_food_vendor: nullableText(body, "existing_food_vendor", 160), preferred_meal_time: nullableText(body, "preferred_meal_time", 40),
     meal_price_range: nullableText(body, "meal_price_range", 80), status: "RECEIVED", created_at: FieldValue.serverTimestamp(),
@@ -86,6 +89,8 @@ export async function registerEntity(entityType: EntityType, body: Record<string
     industry: entityType === "company" ? nullableText(body, "industry", 120) : null,
     number_of_offices: entityType === "company" ? nullableInteger(body, "number_of_offices") : null,
     city_employee_strength: entityType === "company" ? nullableInteger(body, "city_employee_strength") : null,
+    college_type: entityType === "college" ? nullableText(body, "college_type", 100) : null,
+    student_hostel_available: entityType === "college" ? nullableText(body, "student_hostel_available", 20) : null,
   });
   defer(async () => { await entityAnalytics.recordRegistration(entity, entity.provider).catch(() => undefined); });
   return { referenceId, status: "RECEIVED" };

@@ -6,7 +6,8 @@ import { CITY_BY_CODE, SCHOOL_CITIES, type CityCode, type ZoneCode } from "@/lib
 
 type Props = { entityType: EntityType; value: LocationEntityResult | null; onChange: (entity: LocationEntityResult | null) => void };
 type Payload = { results?: LocationEntityResult[]; meta?: { cache_hit?: boolean }; entity?: LocationEntityResult; error?: string };
-const title = (type: EntityType) => type === "office" ? "Office" : "Company";
+const title = (type: EntityType) => type === "office" ? "Office" : type === "company" ? "Company" : "College";
+const manualPath = (type: EntityType) => type === "office" ? "offices" : type === "company" ? "companies" : "colleges";
 
 export default function EntitySearchAutocomplete({ entityType, value, onChange }: Props) {
   const label = title(entityType);
@@ -62,7 +63,7 @@ export default function EntitySearchAutocomplete({ entityType, value, onChange }
     event.preventDefault(); if (!cityCode || !zoneCode) return; setManualSaving(true);
     try {
       const form = new FormData(event.currentTarget);
-      const response = await fetch(`/api/${entityType === "office" ? "offices" : "companies"}/manual`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      const response = await fetch(`/api/${manualPath(entityType)}/manual`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         display_name: form.get("display_name"), formatted_address: form.get("formatted_address"), locality: form.get("locality"), postal_code: form.get("postal_code"), city_code: cityCode, zone_code: zoneCode,
       }) });
       const data = await response.json() as Payload;

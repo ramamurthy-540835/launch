@@ -42,6 +42,15 @@
         { "fieldPath": "is_active", "order": "ASCENDING" },
         { "fieldPath": "search_keywords", "arrayConfig": "CONTAINS" }
       ]
+    },
+    {
+      "collectionGroup": "colleges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "city_code", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" },
+        { "fieldPath": "search_keywords", "arrayConfig": "CONTAINS" }
+      ]
     }
   ],
   "fieldOverrides": []

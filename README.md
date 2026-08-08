@@ -123,15 +123,15 @@ School locator APIs:
 - `POST /api/schools/manual`
 - `POST /api/school-registration`
 
-## Office and Company Registration
+## Office, Company and College Registration
 
-The partner registration landing page at `/register` now links to the existing school flow plus `/register/office` and `/register/company`. Office represents a physical workplace; company represents the organization. They remain separate Firestore masters, and an office can optionally link to its company with `company_id`.
+The partner registration landing page at `/register` links to School Registration, a combined `/register/office-company` flow, and `/register/college`. Office represents a physical workplace while Company represents the organization; the shared page lets users choose either without collapsing their master records. College represents a higher-education campus.
 
 Both new flows reuse the existing four-city/twenty-zone territory model and server-side provider transport:
 
 ```text
 City → Zone → 3-character entity prefix
-  → Firestore offices/companies master
+  → Firestore offices/companies/colleges master
   → 14-day entity_search_cache
   → Google Places Text Search
   → SerpAPI Google Maps fallback
@@ -140,22 +140,25 @@ City → Zone → 3-character entity prefix
   → deferred BigQuery analytics
 ```
 
-`lib/entity-locator/profiles.ts` defines the office and company query templates, preferred categories, and conservative exclusions. The shared provider, repository, search service, autocomplete, timeout, request-deduplication, rate-limiting, and analytics paths are not duplicated between the two modules. A company search is location-aware for discovery but does not claim MCA, GSTIN, or CIN verification.
+`lib/entity-locator/profiles.ts` defines Office, Company, and College query templates, preferred categories, and conservative exclusions. They share the provider, repository, search service, autocomplete, timeout, request-deduplication, rate-limiting, and analytics paths.
 
 Operational Firestore collections added:
 
 - `offices`: physical office master; nullable `company_id` supports company-to-many-office relationships.
 - `companies`: organization master; nullable `primary_office_id` is future-ready.
+- `colleges`: normalized higher-education campus master.
 - `entity_search_cache`: entity-type/city/zone/query cache with a 14-day expiry.
-- `office_registrations` and `company_registrations`: onboarding transactions kept separate from master records.
+- `office_registrations`, `company_registrations`, and `college_registrations`: onboarding transactions kept separate from master records.
 
 Entity APIs:
 
 - `GET /api/entities/search?type=office&city=CHENNAI&zone=CHENNAI_WEST&q=dlf&limit=10`
 - `GET /api/entities/search?type=company&city=CHENNAI&zone=CHENNAI_WEST&q=tat&limit=10`
+- `GET /api/entities/search?type=college&city=CHENNAI&zone=CHENNAI_WEST&q=eng&limit=10`
 - `GET /api/offices/{id}` and `POST /api/offices/manual`
 - `GET /api/companies/{id}` and `POST /api/companies/manual`
-- `POST /api/office-registration` and `POST /api/company-registration`
+- `GET /api/colleges/{id}` and `POST /api/colleges/manual`
+- `POST /api/office-registration`, `POST /api/company-registration`, and `POST /api/college-registration`
 
 The existing server-only `GOOGLE_PLACES_API_KEY`/`GOOGLE_MAPS_API_KEY` and `SERPAPI_API_KEY`/`SERP_API_KEY` variables are reused; no new key is required. Run `infrastructure/school-directory.sql` again to add the office/company analytics tables and views. Deploy the two new Firestore composite indexes in `infrastructure/firestore.indexes.json`, and configure Firestore TTL on `entity_search_cache.expires_at`.
 

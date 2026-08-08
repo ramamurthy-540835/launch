@@ -73,7 +73,7 @@ export function normalizeEntityCandidate(candidate: EntityCandidate): LocationEn
     search_keywords: buildEntitySearchKeywords(name), outside_selected_zone: !resolved || zone.code !== candidate.selectedZoneCode,
     zone_resolution: resolved ? "locality" : "search_context", company_id: null, legal_name: null,
     company_type: null, industry: null, primary_office_id: null, website: null, phone: null, email: null,
-    gstin: null, cin: null, employee_strength: null,
+    gstin: null, cin: null, employee_strength: null, student_strength: null,
   };
 }
 
