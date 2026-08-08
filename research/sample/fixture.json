@@ -1,0 +1,82 @@
+{
+  "notice": "Synthetic test fixture. Names and URLs are not real research records.",
+  "schools": [
+    {
+      "name": "Sample Adyar School A",
+      "address": "1 Sample School Road, Adyar, Chennai 600020",
+      "locality": "Adyar",
+      "pin_code": "600020",
+      "latitude": 13.0067,
+      "longitude": 80.2575,
+      "school_type": "CBSE (synthetic fixture)",
+      "source_url": "https://example.invalid/synthetic/school-a",
+      "source_type": "Synthetic fixture",
+      "source_id": "fixture-school-a"
+    },
+    {
+      "name": "Sample Adyar School B",
+      "address": "2 Sample Avenue, Adyar, Chennai 600020",
+      "locality": "Adyar",
+      "pin_code": "600020",
+      "latitude": 13.012,
+      "longitude": 80.25,
+      "school_type": "State Board (synthetic fixture)",
+      "source_url": "https://example.invalid/synthetic/school-b",
+      "source_type": "Synthetic fixture",
+      "source_id": "fixture-school-b"
+    }
+  ],
+  "apartments": [
+    {
+      "name": "Sample Community Alpha",
+      "address": "10 Sample Main Road, Adyar, Chennai 600020",
+      "locality": "Adyar",
+      "pin_code": "600020",
+      "latitude": 13.008,
+      "longitude": 80.255,
+      "units": 120,
+      "gated_status": "Publicly tagged as residential complex",
+      "public_website": "https://example.invalid/synthetic/community-alpha",
+      "source_url": "https://example.invalid/synthetic/community-alpha-source",
+      "source_type": "Synthetic fixture",
+      "source_id": "fixture-apartment-alpha"
+    },
+    {
+      "name": "sample community alpha",
+      "address": "10 Sample Main Road, Adyar, Chennai 600020",
+      "locality": "Adyar",
+      "pin_code": "600020",
+      "latitude": 13.008,
+      "longitude": 80.255,
+      "units": 120,
+      "gated_status": "Publicly tagged as residential complex",
+      "public_website": "https://example.invalid/synthetic/community-alpha",
+      "source_url": "https://example.invalid/synthetic/community-alpha-source",
+      "source_type": "Synthetic fixture",
+      "source_id": "fixture-apartment-alpha-duplicate"
+    },
+    {
+      "name": "Sample Residency Beta",
+      "address": "20 Sample Canal Road, Adyar, Chennai 600020",
+      "locality": "Adyar",
+      "pin_code": "600020",
+      "latitude": 13.018,
+      "longitude": 80.245,
+      "source_url": "https://example.invalid/synthetic/residency-beta",
+      "source_type": "Synthetic fixture",
+      "source_id": "fixture-apartment-beta"
+    },
+    {
+      "name": "Sample Enclave Gamma",
+      "address": "30 Sample Link Road, Thiruvanmiyur, Chennai 600041",
+      "locality": "Thiruvanmiyur",
+      "pin_code": "600041",
+      "latitude": 13.03,
+      "longitude": 80.235,
+      "gated_status": "Publicly tagged as gated/private-access community",
+      "source_url": "https://example.invalid/synthetic/enclave-gamma",
+      "source_type": "Synthetic fixture",
+      "source_id": "fixture-apartment-gamma"
+    }
+  ]
+}

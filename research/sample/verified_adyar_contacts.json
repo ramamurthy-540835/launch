@@ -1,0 +1,44 @@
+{
+  "notice": "Small verified public-contact pilot. Coordinates are address-geocoded; phone numbers come from the linked official organisation pages.",
+  "schools": [
+    {
+      "name": "Bharath Senior Secondary School",
+      "address": "10, Kamaraj Avenue, Adyar, Chennai, Tamil Nadu 600020",
+      "locality": "Adyar (South Chennai pilot)",
+      "pin_code": "600020",
+      "latitude": 13.0013197,
+      "longitude": 80.2541383,
+      "school_type": "CBSE",
+      "public_website": "https://bharathschool.org/",
+      "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Bharath%20Senior%20Secondary%20School%20Adyar",
+      "public_phone": "044-24413051; 044-24414484",
+      "phone_source_url": "https://bharathschool.org/contact-us/",
+      "contact_type": "Official school office",
+      "contact_verification": "Verified on official school contact page on 2026-08-08",
+      "source_url": "https://bharathschool.org/contact-us/",
+      "source_type": "Official school website; coordinates from OSM Nominatim address geocoding",
+      "source_id": "verified-school-bharath-adyar"
+    }
+  ],
+  "apartments": [
+    {
+      "name": "Chaitanya Brindavan",
+      "address": "New Door No. 9, Anna Avenue, Bakthavatchalam Nagar Extension, Adyar, Chennai, Tamil Nadu 600020",
+      "locality": "Adyar (South Chennai pilot)",
+      "pin_code": "600020",
+      "latitude": 13.0036841,
+      "longitude": 80.2552812,
+      "units": 15,
+      "gated_status": "Established residential apartment project with access-controlled lobby and security cabin",
+      "public_website": "https://chaitanyafoundations.com/listing/brindavan/",
+      "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Chaitanya%20Brindavan%20Anna%20Avenue%20Adyar",
+      "public_phone": "044-42138851; +91-80561-18811",
+      "phone_source_url": "https://chaitanyafoundations.com/listing/brindavan/",
+      "contact_type": "Official developer office",
+      "contact_verification": "Verified on official developer project page on 2026-08-08; not an apartment resident contact",
+      "source_url": "https://chaitanyafoundations.com/listing/brindavan/",
+      "source_type": "Official developer project page; coordinates from OSM Nominatim address geocoding",
+      "source_id": "verified-apartment-chaitanya-brindavan"
+    }
+  ]
+}

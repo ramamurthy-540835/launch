@@ -89,6 +89,7 @@ export default function Home() {
           <a href="#menu">Menu</a>
           <a href="#standards">Our promise</a>
           <a href="#how">How it works</a>
+          <a href="/marketing">Marketing</a>
         </nav>
         <InstallAppButton />
         <button className="cart-button" onClick={() => setCartOpen(true)}>
