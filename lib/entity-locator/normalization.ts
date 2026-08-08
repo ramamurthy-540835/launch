@@ -103,8 +103,13 @@ export function deduplicateEntities(entities: LocationEntityResult[]) {
 export function rankEntities(entities: LocationEntityResult[], query: string, zoneCode: ZoneCode) {
   const normalized = normalizeEntityName(query);
   return [...entities].sort((left, right) => {
-    const score = (entity: LocationEntityResult) => (entity.normalized_name.startsWith(normalized) ? 100 : entity.normalized_name.includes(normalized) ? 55 : 0)
-      + (entity.zone_code === zoneCode ? 30 : 0) + (entity.category ? 10 : 0) + (entity.provider === "google" ? 5 : 0) + entity.confidence * 10;
+    const score = (entity: LocationEntityResult) => {
+      const profile = ENTITY_PROFILES[entity.entity_type];
+      const preferredCategory = Boolean(entity.category && profile.preferredTypes.includes(entity.category));
+      return (entity.normalized_name.startsWith(normalized) ? 100 : entity.normalized_name.includes(normalized) ? 55 : 0)
+        + (entity.zone_code === zoneCode ? 30 : 0) + (preferredCategory ? 20 : entity.category ? -5 : 0)
+        + (entity.provider === "google" ? 5 : 0) + entity.confidence * 10;
+    };
     return score(right) - score(left) || left.display_name.localeCompare(right.display_name);
   });
 }

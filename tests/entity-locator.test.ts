@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createManualEntity, registrationEntityFields } from "@/lib/entity-locator/api";
 import { LocationEntitySearchService } from "@/lib/entity-locator/entity-search-service";
-import { deduplicateEntities, normalizeEntityCandidate } from "@/lib/entity-locator/normalization";
+import { deduplicateEntities, normalizeEntityCandidate, rankEntities } from "@/lib/entity-locator/normalization";
 import type { EntityAnalytics, EntityDirectoryRepository, EntityType, LocationEntityResult, LocationEntitySearchProvider } from "@/lib/entity-locator/types";
 
 const base = { cityCode: "CHENNAI" as const, zoneCode: "CHENNAI_WEST" as const, query: "dlf", limit: 10 };
@@ -31,6 +31,8 @@ describe("LocationEntitySearchService", () => {
 
 describe("entity profiles and manual fallback", () => {
   it("excludes schools from office results", () => { expect(normalizeEntityCandidate({ entityType: "office", name: "DLF Public School", address: "Porur, Chennai", latitude: 13, longitude: 80, provider: "google", types: ["school"], selectedCityCode: "CHENNAI", selectedZoneCode: "CHENNAI_WEST" })).toBeNull(); });
+  it("excludes dance studios from company results", () => { expect(normalizeEntityCandidate({ entityType: "company", name: "Tat Dance Studio", address: "Virugambakkam, Chennai", latitude: 13, longitude: 80, provider: "google", types: ["association_or_organization"], selectedCityCode: "CHENNAI", selectedZoneCode: "CHENNAI_WEST" })).toBeNull(); });
+  it("ranks a corporate company above a generic matching business", () => { const generic = entity("company", "generic", { display_name: "TAT", normalized_name: "tat", category: "travel_agency" }); const corporate = entity("company", "corporate", { category: "corporate_office" }); expect(rankEntities([generic, corporate], "tat", "CHENNAI_WEST")[0].id).toBe("corporate"); });
   it("resolves office locality through shared zones", () => { const result = normalizeEntityCandidate({ entityType: "office", name: "DLF Corporate Office", address: "Ramapuram, Chennai, Tamil Nadu 600089", locality: "Ramapuram", latitude: 13, longitude: 80, provider: "google", types: ["corporate_office"], selectedCityCode: "CHENNAI", selectedZoneCode: "CHENNAI_WEST" }); expect(result?.zone_code).toBe("CHENNAI_WEST"); });
   it("creates an unverified manual company with separate company identity", () => { const result = createManualEntity("company", { display_name: "Acme Technologies Pvt Ltd", formatted_address: "Porur, Chennai, Tamil Nadu", locality: "Porur", postal_code: "600116", city_code: "CHENNAI", zone_code: "CHENNAI_WEST" }); expect(result.entity).toMatchObject({ entity_type: "company", provider: "manual", verification_status: "unverified", latitude: null, longitude: null }); });
   it("copies authoritative latitude and longitude into registration data", () => { expect(registrationEntityFields(entity("office", "office-location"))).toMatchObject({ office_id: "office-location", latitude: 13.02, longitude: 80.17 }); });

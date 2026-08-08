@@ -1,4 +1,4 @@
-import { deduplicateEntities, normalizeEntityName, rankEntities } from "@/lib/entity-locator/normalization";
+import { deduplicateEntities, isRelevantEntity, normalizeEntityName, rankEntities } from "@/lib/entity-locator/normalization";
 import type { EntityAnalytics, EntityDirectoryRepository, EntitySearchParams, EntitySearchResponse, LocationEntityResult, LocationEntitySearchProvider } from "@/lib/entity-locator/types";
 import { logInfo, logWarning } from "@/lib/logging";
 import { ProviderError } from "@/lib/school-locator/provider-utils";
@@ -44,7 +44,8 @@ export class LocationEntitySearchService {
 
   private matching(entities: LocationEntityResult[], params: EntitySearchParams) {
     const normalized = normalizeEntityName(params.query);
-    return entities.filter((entity) => entity.entity_type === params.entityType && entity.city_code === params.cityCode && entity.normalized_name.includes(normalized))
+    return entities.filter((entity) => entity.entity_type === params.entityType && entity.city_code === params.cityCode
+      && entity.normalized_name.includes(normalized) && isRelevantEntity(params.entityType, entity.display_name, entity.category ? [entity.category] : []))
       .map((entity) => ({ ...entity, outside_selected_zone: (entity.zone_resolution !== "locality" && entity.provider !== "manual") || entity.zone_code !== params.zoneCode }));
   }
 

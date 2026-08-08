@@ -33,7 +33,7 @@ export const ENTITY_PROFILES: Record<EntityType, EntitySearchProfile> = {
     serpQueryTerms: ["company", "private limited"],
     preferredTypes: ["corporate_office", "company", "software_company", "manufacturer", "consultant"],
     includePattern: /\b(company|companies|private limited|pvt\.? ltd|limited|ltd|llp|technologies|technology|solutions|industries|enterprise|consulting|logistics|software|services|systems|manufacturing|corporation)\b/i,
-    excludePattern: /\b(school|college|university|hospital|restaurant|cafe|apartment|temple|salon|gym|cinema|theatre)\b/i,
+    excludePattern: /\b(school|college|university|hospital|restaurant|cafe|apartment|temple|salon|gym|cinema|theatre|dance|music|studio|fitness)\b/i,
   },
 };
 
