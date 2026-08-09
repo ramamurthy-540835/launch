@@ -3,6 +3,8 @@ import InstallAppButton from "@/components/InstallAppButton";
 import ParentAuth from "@/components/ParentAuth";
 import StudentProfiles, { type StudentSelection } from "@/components/StudentProfiles";
 import FranchiseDirectory from "@/components/FranchiseDirectory";
+import FranchiseRegistration from "@/components/FranchiseRegistration";
+import ChennaiFranchiseMap from "@/components/franchises/ChennaiFranchiseMap";
 import type { Franchise } from "@/lib/franchises";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -259,9 +261,11 @@ export default function Home() {
 
       <section className="franchise-section" id="franchises">
         <div className="section-heading"><div><span className="kicker">CHENNAI FRANCHISE DIRECTORY</span><h2>Find a franchise in Chennai.</h2></div><p>Browse publicly listed franchise businesses by area and category. Contact details are taken from each business’s public listing.</p></div>
+        <ChennaiFranchiseMap franchises={franchises} />
         {franchiseError && <p className="franchise-message" role="alert">{franchiseError}. Please try again shortly.</p>}
         {!franchiseError && franchises.length === 0 && <p className="franchise-message">The directory will appear after the SerpAPI collection is run with a configured key.</p>}
         {!franchiseError && franchises.length > 0 && <FranchiseDirectory franchises={franchises} />}
+        <FranchiseRegistration />
       </section>
 
       <footer><a className="brand" href="#top"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></a><p>Made with care for growing minds in Tamil Nadu.</p><small>Menu is illustrative. Final meal plans should be approved by a qualified pediatric dietitian and the participating school.</small></footer>
