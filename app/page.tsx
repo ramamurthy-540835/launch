@@ -17,8 +17,11 @@ declare global { interface Window { Razorpay?: RazorpayConstructor } }
 async function loadRazorpayCheckout() {
   if (window.Razorpay) return;
   await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-lunchbox-razorpay="true"]');
+    if (existing) { existing.addEventListener("load", () => resolve(), { once: true }); existing.addEventListener("error", () => reject(new Error("Unable to load secure payment checkout.")), { once: true }); return; }
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.dataset.lunchboxRazorpay = "true";
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Unable to load secure payment checkout."));
     document.head.appendChild(script);
@@ -140,7 +143,9 @@ export default function Home() {
             name: "LunchBox",
             description: "School lunch order",
             order_id: data.payment.id,
-            prefill: { contact: `+91${verifiedPhone}` },
+            prefill: { contact: `+91${verifiedPhone || String(form.get("parentPhone") || "")}` },
+            theme: { color: "#18392c" },
+            retry: { enabled: true, max_count: 2 },
             handler: async (result: RazorpayResult) => {
               try {
                 const verification = await fetch("/api/payments/verify", {
@@ -265,7 +270,7 @@ export default function Home() {
         {isFirebaseClientConfigured ? <ParentAuth onChange={setVerifiedPhone} /> : <label>Parent mobile<input name="parentPhone" required inputMode="tel" pattern="[6-9][0-9]{9}" placeholder="10-digit mobile number" /></label>}
         {isFirebaseClientConfigured && verifiedPhone && selectedSchool && <StudentProfiles schoolId={selectedSchool.id} gradeBand={gradeBand} onChange={setSelectedStudent} />}
         <button className="checkout-button" disabled={submitting || !selectedSchool || (isFirebaseClientConfigured && (!verifiedPhone || !selectedStudent))}>{submitting ? "Placing order…" : `Place order · ₹${subtotal}`}</button>
-        <small>{selectedSchool ? "No payment is collected in this demo." : "Choose an onboarded school to order. School requests will be added next."} The school coordinator confirms the order.</small>
+        <small>{selectedSchool ? "If online payment is enabled, secure Razorpay checkout opens next. LunchBox never stores card or UPI credentials." : "Choose an onboarded school to order."} The school coordinator confirms the order.</small>
       </form></div>}
 
       {confirmation && <div className="toast"><span>✓</span><div><b>Lunches booked!</b><small>Order {confirmation.slice(0, 13)} confirmed</small></div><button onClick={() => setConfirmation("")}>×</button></div>}

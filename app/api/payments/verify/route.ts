@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ParentAuthError, verifyParent } from "@/lib/firebase-admin";
 import { confirmCapturedPayment } from "@/lib/firestore";
 import { fetchPayment, verifyCheckoutSignature } from "@/lib/razorpay";
+import { enforceRateLimit, RateLimitError } from "@/lib/hardening";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const parent = await verifyParent(request);
     if (!parent) throw new ParentAuthError("Parent sign-in is required.");
+    await enforceRateLimit("verify_payment", parent.uid, 20, 300);
     const body = await request.json() as Record<string, unknown>;
     const orderId = String(body.razorpay_order_id || "");
     const paymentId = String(body.razorpay_payment_id || "");
@@ -17,13 +19,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Payment signature is invalid." }, { status: 400 });
     }
     const payment = await fetchPayment(paymentId);
-    if (payment.status !== "captured" || payment.order_id !== orderId || payment.currency !== "INR") {
+    if (payment.id !== paymentId || payment.status !== "captured" || payment.order_id !== orderId || payment.currency !== "INR" || !Number.isSafeInteger(payment.amount)) {
       return NextResponse.json({ error: "Payment has not been captured." }, { status: 409 });
     }
     const confirmed = await confirmCapturedPayment(orderId, paymentId, Number(payment.amount), parent.uid);
     return NextResponse.json({ confirmed: true, orderId: confirmed.orderId });
   } catch (error) {
-    const status = error instanceof ParentAuthError ? 401 : 500;
+    const status = error instanceof ParentAuthError ? 401 : error instanceof RateLimitError ? 429 : 500;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to verify payment." }, { status });
   }
 }

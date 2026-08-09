@@ -183,8 +183,8 @@ export async function confirmCapturedPayment(razorpayOrderId: string, paymentId:
         updated_at: FieldValue.serverTimestamp(),
       });
     });
-    transaction.update(orderRef, { status: "CONFIRMED", razorpay_payment_id: paymentId, paid_at: FieldValue.serverTimestamp() });
-    transaction.create(paymentRef, { order_id: orderRef.id, razorpay_order_id: razorpayOrderId, processed_at: FieldValue.serverTimestamp() });
+    transaction.update(orderRef, { status: "CONFIRMED", payment_status: "CAPTURED", razorpay_payment_id: paymentId, paid_at: FieldValue.serverTimestamp(), payment_updated_at: FieldValue.serverTimestamp() });
+    transaction.create(paymentRef, { order_id: orderRef.id, razorpay_order_id: razorpayOrderId, amount_paise: amountPaise, currency: "INR", status: "CAPTURED", processed_at: FieldValue.serverTimestamp() });
     return { orderId: orderRef.id, duplicate: false };
   });
 }

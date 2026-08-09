@@ -222,6 +222,8 @@ The `/operations` screen uses `roles` plus scoped custom claims: `kitchen_ids`, 
 
 When the three `RAZORPAY_*` variables are configured, orders begin as `PENDING_PAYMENT` and consume pending—not confirmed—capacity. Checkout creates a Razorpay Order on the server. Fulfilment requires a captured INR payment with matching amount and a valid signature. Configure the Razorpay Dashboard webhook URL as `/api/webhooks/razorpay` and subscribe to `payment.captured`, `order.paid`, `refund.created`, `refund.processed`, and `refund.failed`. Store API and webhook secrets in Secret Manager; the webhook secret must be separate from the API key secret.
 
+Follow [the Razorpay setup runbook](infrastructure/razorpay.md) to configure Test Mode, bind secrets to Cloud Run, register the production webhook, validate the integration, and deliberately enable live charging. Keep `ENABLE_PAYMENTS=false` until the Test Mode payment and webhook checks pass.
+
 Run `POST /api/tasks/expire-payments` every minute from Cloud Scheduler with the `X-Task-Secret` header. It expires abandoned holds after `PAYMENT_HOLD_MINUTES` and releases pending capacity atomically. Deploy `infrastructure/firestore.indexes.json` before enabling this task. Full refunds are available through the admin payments API only before every selected meal cutoff; they use Razorpay refund idempotency and release confirmed capacity exactly once.
 
 For infrastructure-only staging before Firebase/Razorpay onboarding, set `REQUIRE_FIREBASE_AUTH=false` and `ENABLE_PAYMENTS=false`. This mode must never be used for real parent data or production orders; it exists only for synthetic Firestore, BigQuery, GCS, capacity and deployment validation.
