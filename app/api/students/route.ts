@@ -91,12 +91,12 @@ export async function POST(request: Request) {
 
     const duplicateQuery = firestoreClient().collection("students")
       .where("parent_uid", "==", parent.uid)
-      .where("school_id", "==", schoolId)
-      .where("student_name_key", "==", studentName.toLowerCase());
-    const duplicateSnapshot = await duplicateQuery.limit(10).get();
+      .where("school_id", "==", schoolId);
+    const duplicateSnapshot = await duplicateQuery.limit(100).get();
     const duplicate = duplicateSnapshot.docs.some((document) => {
+      const existingName = String(document.get("student_name_key") || "").toLowerCase();
       const existingRoll = String(document.get("roll_number") || "").toLowerCase();
-      return rollNumber ? existingRoll === rollNumber.toLowerCase() : !existingRoll;
+      return existingName === studentName.toLowerCase() || (Boolean(rollNumber) && existingRoll === rollNumber.toLowerCase());
     });
     if (duplicate) {
       return NextResponse.json({ error: "This student profile already exists for the selected school." }, { status: 409 });

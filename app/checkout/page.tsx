@@ -104,16 +104,18 @@ export default function CheckoutPage() {
     try {
       if (!selectedSchool) throw new Error("Choose an onboarded school before placing the order.");
       if (items.length === 0) throw new Error("Your lunch bag is empty.");
+      if (!isFirebaseClientConfigured) throw new Error("Parent phone verification is not configured. Please contact LunchBox support.");
+      if (!verifiedPhone || !selectedStudent) throw new Error("Verify the parent mobile number and select a saved student profile.");
       idempotencyKey.current ||= crypto.randomUUID();
       const token = await firebaseAuth()?.currentUser?.getIdToken();
+      if (!token) throw new Error("Your parent session has expired. Verify the mobile number again.");
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey.current, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          studentName: form.get("studentName"),
           studentId: selectedStudent?.id,
           schoolName: selectedSchool.name,
-          parentPhone: verifiedPhone || form.get("parentPhone"),
+          parentPhone: verifiedPhone,
           city,
           gradeBand,
           items,
@@ -132,7 +134,7 @@ export default function CheckoutPage() {
             name: "LunchBox",
             description: "School lunch order",
             order_id: data.payment.id,
-            prefill: { contact: `+91${verifiedPhone || form.get("parentPhone")}` },
+            prefill: { contact: `+91${verifiedPhone}` },
             handler: async (result: RazorpayResult) => {
               try {
                 const verification = await fetch("/api/payments/verify", {
@@ -201,32 +203,7 @@ export default function CheckoutPage() {
           {isFirebaseClientConfigured ? <>
             <ParentAuth onChange={setVerifiedPhone} />
             {verifiedPhone && selectedSchool && <StudentProfiles schoolId={selectedSchool.id} gradeBand={gradeBand} onChange={setSelectedStudent} />}
-          </> : <>
-            <label>Parent mobile<input name="parentPhone" required inputMode="tel" pattern="[6-9][0-9]{9}" placeholder="10-digit mobile number" /></label>
-            <div className="student-profile-panel">
-              <label>Student full name<input name="studentName" required minLength={2} maxLength={100} placeholder="e.g. Nila Raman" /></label>
-              <div className="form-grid">
-                <label>Section, optional<input name="profileSection" maxLength={20} placeholder="e.g. B" /></label>
-                <label>Roll/admission no., optional<input name="profileRollNumber" maxLength={40} placeholder="e.g. A1024" /></label>
-              </div>
-              <label>Parent relationship<select name="profileRelationship" required defaultValue="mother"><option value="mother">Mother</option><option value="father">Father</option><option value="guardian">Guardian</option></select></label>
-              <fieldset>
-                <legend>Home address</legend>
-                <label>House/flat and street<input name="homeAddressLine1" required maxLength={160} placeholder="Flat 2B, 10 Lake View Road" /></label>
-                <label>Area/locality, optional<input name="homeAddressLine2" maxLength={160} placeholder="Adyar" /></label>
-                <div className="form-grid">
-                  <label>City<input name="homeAddressCity" required maxLength={80} placeholder="Chennai" /></label>
-                  <label>State<input name="homeAddressState" required maxLength={80} defaultValue="Tamil Nadu" /></label>
-                </div>
-                <div className="form-grid">
-                  <label>Pincode<input name="homeAddressPincode" required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="600020" /></label>
-                  <label>Landmark, optional<input name="homeAddressLandmark" maxLength={120} placeholder="Near bus stop" /></label>
-                </div>
-              </fieldset>
-              <label>Known allergies<input name="allergies" placeholder="e.g. peanut, milk, or leave blank" /></label>
-              <label className="checkbox-label"><input name="allergyAcknowledged" type="checkbox" required /> <span>I confirm the allergy information is complete and will notify the school and kitchen of changes.</span></label>
-            </div>
-          </>}
+          </> : <p className="checkout-message" role="alert">Parent phone verification is not configured. Student registration and ordering are unavailable until Firebase is configured.</p>}
         </section>
 
         <section className="checkout-panel">
@@ -239,7 +216,7 @@ export default function CheckoutPage() {
         </section>
 
         {message && <p className="checkout-message" role="alert">{message}</p>}
-        <button className="checkout-button checkout-submit" disabled={submitting || itemCount === 0 || !selectedSchool || (isFirebaseClientConfigured && (!verifiedPhone || !selectedStudent))}>{submitting ? "Placing order..." : `Place order · ₹${subtotal}`}</button>
+        <button className="checkout-button checkout-submit" disabled={submitting || itemCount === 0 || !selectedSchool || !isFirebaseClientConfigured || !verifiedPhone || !selectedStudent}>{submitting ? "Placing order..." : `Place order · ₹${subtotal}`}</button>
       </form>
 
       <aside className="checkout-summary" aria-label="Order summary">

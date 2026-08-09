@@ -25,7 +25,8 @@ export async function POST(request: Request) {
   const correlationId = requestId(request);
   try {
     const parent = await verifyParent(request);
-    if (parent) await enforceRateLimit("create_order", parent.uid, 10, 60);
+    if (!parent) throw new ParentAuthError("Parent sign-in is required before placing an order.");
+    await enforceRateLimit("create_order", parent.uid, 10, 60);
     const idempotencyKey = request.headers.get("Idempotency-Key");
     if (isFirestoreConfigured() && (!idempotencyKey || !/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey))) {
       return NextResponse.json({ error: "A valid Idempotency-Key header is required." }, { status: 400 });
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     if (!/^[6-9]\d{9}$/.test(body.parentPhone as string)) {
       return NextResponse.json({ error: "Enter a valid 10-digit mobile number." }, { status: 400 });
     }
-    if (parent && parent.phone !== body.parentPhone) {
+    if (parent.phone !== body.parentPhone) {
       return NextResponse.json({ error: "Use the verified parent mobile number." }, { status: 403 });
     }
     if (!catalog.cities.includes(body.city as string) || !(body.gradeBand as string in catalog.gradePlans)) {
@@ -48,25 +49,18 @@ export async function POST(request: Request) {
     if (!school) {
       return NextResponse.json({ error: "Choose an onboarded school in the selected city." }, { status: 400 });
     }
-    let studentName = typeof body.studentName === "string" ? body.studentName.trim() : "";
-    let allergiesJson: string | null = null;
-    if (parent) {
-      if (typeof body.studentId !== "string") {
-        return NextResponse.json({ error: "Choose an authenticated student profile." }, { status: 400 });
-      }
-      const student = await getOwnedStudent(parent.uid, body.studentId);
-      if (!student || !student.allergy_acknowledged) {
-        return NextResponse.json({ error: "The student profile is unavailable or missing allergy consent." }, { status: 403 });
-      }
-      if (student.school_id !== school.id || student.grade_band !== body.gradeBand) {
-        return NextResponse.json({ error: "The student profile does not match the selected school and grade." }, { status: 400 });
-      }
-      studentName = student.student_name;
-      allergiesJson = JSON.stringify(student.allergies || []);
+    if (typeof body.studentId !== "string") {
+      return NextResponse.json({ error: "Choose an authenticated student profile." }, { status: 400 });
     }
-    if (studentName.length < 2) {
-      return NextResponse.json({ error: "Choose a valid student profile." }, { status: 400 });
+    const student = await getOwnedStudent(parent.uid, body.studentId);
+    if (!student || !student.allergy_acknowledged || student.active === false || student.status === "inactive") {
+      return NextResponse.json({ error: "The student profile is unavailable, inactive, or missing allergy consent." }, { status: 403 });
     }
+    if (student.school_id !== school.id || student.grade_band !== body.gradeBand) {
+      return NextResponse.json({ error: "The student profile does not match the selected school and grade." }, { status: 400 });
+    }
+    const studentName = student.student_name;
+    const allergiesJson = JSON.stringify(student.allergies || []);
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return NextResponse.json({ error: "Add at least one meal." }, { status: 400 });
     }

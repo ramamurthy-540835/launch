@@ -319,5 +319,7 @@ export async function getOwnedStudent(parentUid: string, studentId: string) {
     };
     allergy_acknowledged: boolean;
     allergies: string[];
+    active?: boolean;
+    status?: "active" | "inactive";
   };
 }
