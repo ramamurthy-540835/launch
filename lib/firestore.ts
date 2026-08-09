@@ -303,7 +303,20 @@ export async function getOwnedStudent(parentUid: string, studentId: string) {
     parent_uid: string;
     student_name: string;
     school_id: string;
+    school_name?: string;
+    city?: string;
     grade_band: string;
+    section?: string;
+    roll_number?: string;
+    relationship?: "mother" | "father" | "guardian";
+    home_address?: {
+      line1: string;
+      line2: string;
+      city: string;
+      state: string;
+      pincode: string;
+      landmark: string;
+    };
     allergy_acknowledged: boolean;
     allergies: string[];
   };
