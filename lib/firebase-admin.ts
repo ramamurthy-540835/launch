@@ -30,6 +30,22 @@ async function decodeRequest(request: Request) {
   }
 }
 
+function stringArray(value: unknown) { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
+
+export function canAccessFranchise(claims: { admin?: unknown; roles?: unknown; franchise_ids?: unknown; franchise_id?: unknown }, franchiseId: string) {
+  const roles = stringArray(claims.roles);
+  if (claims.admin === true || roles.includes("admin")) return true;
+  if (!roles.includes("franchise")) return false;
+  return stringArray(claims.franchise_ids).includes(franchiseId) || claims.franchise_id === franchiseId;
+}
+
+export async function verifyFranchiseAccess(request: Request, franchiseId: string) {
+  const decoded = await decodeRequest(request);
+  const claims = decoded as unknown as { admin?: unknown; roles?: unknown; franchise_ids?: unknown; franchise_id?: unknown };
+  if (!canAccessFranchise(claims, franchiseId)) throw new ParentAuthError("This account is not allowed to access this franchise.");
+  return { uid: decoded.uid, isAdmin: claims.admin === true || stringArray(claims.roles).includes("admin") };
+}
+
 export async function verifyParent(request: Request) {
   if (!isParentAuthRequired()) return null;
   const decoded = await decodeRequest(request);
@@ -41,7 +57,6 @@ export async function verifyStaffRole(request: Request, role: "admin" | "kitchen
   const decoded = await decodeRequest(request);
   const roles = Array.isArray(decoded.roles) ? decoded.roles : [];
   if (decoded.admin !== true && !roles.includes(role)) throw new ParentAuthError("This account does not have the required staff role.");
-  const stringArray = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
   return {
     uid: decoded.uid,
     role,

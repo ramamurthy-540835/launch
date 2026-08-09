@@ -19,7 +19,8 @@
     "next": "^15.4.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "serwist": "^9.5.12"
+    "serwist": "^9.5.12",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.17.1",

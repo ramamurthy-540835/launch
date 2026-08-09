@@ -1,6 +1,10 @@
 "use client";
 
 import InstallAppButton from "@/components/InstallAppButton";
+import FranchiseDirectory from "@/components/FranchiseDirectory";
+import FranchiseRegistration from "@/components/FranchiseRegistration";
+import ChennaiFranchiseMap from "@/components/franchises/ChennaiFranchiseMap";
+import type { Franchise } from "@/lib/franchises";
 import { useEffect, useMemo, useState } from "react";
 import { cities as fallbackCities, gradePlans as fallbackGradePlans, mealNutrition, meals as fallbackMeals, schools as fallbackSchools, type GradePlan, type Meal, type School } from "@/lib/meals";
 import { MARKET_PRICE, schoolMealPrice } from "@/lib/pricing";
@@ -13,6 +17,8 @@ export default function Home() {
   const [schools, setSchools] = useState<School[]>(fallbackSchools);
   const [gradePlans, setGradePlans] = useState<Record<string, GradePlan>>(fallbackGradePlans);
   const [catalogError, setCatalogError] = useState("");
+  const [franchises, setFranchises] = useState<Franchise[]>([]);
+  const [franchiseError, setFranchiseError] = useState("");
   const [city, setCity] = useState(fallbackCities[0]);
   const [schoolId, setSchoolId] = useState(fallbackSchools[0]?.id || "request");
   const [gradeBand, setGradeBand] = useState(Object.keys(fallbackGradePlans)[0]);
@@ -37,6 +43,7 @@ export default function Home() {
       });
     }).catch((error) => setCatalogError(error instanceof Error ? error.message : "Catalogue unavailable"));
   }, []);
+  useEffect(() => { fetch("/api/franchises").then(async (response) => { if (!response.ok) throw new Error("Franchise details unavailable"); return response.json(); }).then((data) => { setFranchises(data.franchises || []); setFranchiseError(""); }).catch((error) => setFranchiseError(error instanceof Error ? error.message : "Franchise details unavailable")); }, []);
 
   const citySchools = schools.filter((school) => school.city === city);
   const selectedSchool = schools.find((school) => school.id === schoolId);
@@ -141,6 +148,7 @@ export default function Home() {
         <div><span>2</span><b>Tell us the school</b><p>We group deliveries by campus and lunch break.</p></div>
         <div><span>3</span><b>We deliver fresh</b><p>Every pack arrives sealed, named and on time.</p></div>
       </section>
+      <section className="franchise-section" id="franchises"><div className="section-heading"><div><span className="kicker">CHENNAI FRANCHISE DIRECTORY</span><h2>Find a franchise in Chennai.</h2></div><p>Explore approved LunchBox franchise partners and their service coverage.</p></div><ChennaiFranchiseMap franchises={franchises} />{franchiseError && <p className="franchise-message" role="alert">{franchiseError}</p>}{!franchiseError && franchises.length > 0 && <FranchiseDirectory franchises={franchises} />}<FranchiseRegistration /></section>
 
       <footer><a className="brand" href="#top"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></a><p>Made with care for growing minds in Tamil Nadu.</p><small>Menu is illustrative. Final meal plans should be approved by a qualified pediatric dietitian and the participating school.</small></footer>
 
