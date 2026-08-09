@@ -77,6 +77,32 @@ Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/
 gcloud run deploy lunchbox --source . --region asia-south1 --allow-unauthenticated
 ```
 
+### Franchise details from Firebase Storage
+
+Keep the franchise data in the same Firebase Storage bucket configured as `GCS_BUCKET`. The browser calls `/api/franchises`; Cloud Run reads the files using its service identity, so no Storage credentials or bucket access are exposed to visitors.
+
+Set `GCS_FRANCHISES_OBJECT=franchises.json` to use one file. It can contain either an array or an object with a `franchises` array:
+
+```json
+{
+  "franchises": [
+    {
+      "id": "chennai-anna-nagar",
+      "name": "LunchBox Anna Nagar",
+      "city": "Chennai",
+      "address": "Anna Nagar, Chennai",
+      "phone": "+91 98765 43210",
+      "email": "anna-nagar@example.com",
+      "description": "Serving schools across Anna Nagar.",
+      "imageUrl": "https://...",
+      "active": true
+    }
+  ]
+}
+```
+
+Alternatively, leave `GCS_FRANCHISES_OBJECT` unset, set `GCS_FRANCHISES_PREFIX=franchises/`, and upload one JSON file per franchise under that folder. The Cloud Run service account needs `roles/storage.objectViewer` on the bucket; the existing order upload flow additionally needs `roles/storage.objectUser`.
+
 ### Staff roles
 
 The `/admin` kitchen operations screen requires a Firebase custom claim of `admin: true` or a `roles` array containing `"admin"`. The server revalidates the ID token on every admin API call. Kitchen capacity, active status and cutoff values saved there are enforced by the Firestore order transaction; the environment defaults are used only until a kitchen master record exists.
