@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useState } from "react";
 import ParentAuth from "@/components/ParentAuth";
 import { firebaseAuth } from "@/lib/firebase-client";
-import type { FranchiseApplication, FranchiseApplicationStatus } from "@/lib/franchise-applications";
+import { franchiseApplicationStatuses, type FranchiseApplication, type FranchiseApplicationStatus } from "@/lib/franchise-applications";
 
 type ViewState = "empty" | "loading" | "found" | "not-found" | "error";
 
@@ -34,6 +34,17 @@ export default function FranchiseApplicationLookup() {
   const [application, setApplication] = useState<FranchiseApplication | null>(null);
   const [viewState, setViewState] = useState<ViewState>("empty");
   const [message, setMessage] = useState("");
+  const [applications, setApplications] = useState<FranchiseApplication[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const loadApplications = useCallback(async () => {
+    const token = await firebaseAuth()?.currentUser?.getIdToken(true);
+    if (!token) throw new Error("Your administrator session has expired.");
+    const response = await fetch("/api/admin/franchise-applications", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    const payload = await response.json() as { applications?: FranchiseApplication[]; error?: string };
+    if (!response.ok) throw new Error(payload.error || "Unable to load franchise applications.");
+    setApplications(payload.applications || []);
+  }, []);
 
   const authenticationChanged = useCallback(async (phone: string | null) => {
     setApplication(null);
@@ -46,7 +57,14 @@ export default function FranchiseApplicationLookup() {
     const isAdmin = claims?.claims.admin === true || roles.includes("admin");
     setAuthorized(isAdmin);
     if (!isAdmin) setMessage("This internal page requires administrator access.");
-  }, []);
+    else try { await loadApplications(); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load franchise applications."); }
+  }, [loadApplications]);
+
+  async function update(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!application) return; setSaving(true); setMessage("");
+    try { const token = await firebaseAuth()?.currentUser?.getIdToken(true); const form = new FormData(event.currentTarget); const response = await fetch("/api/admin/franchise-applications", { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ referenceId: application.referenceId, status: form.get("status"), assignedTo: form.get("assigned_to"), notes: form.get("notes") }) }); const payload = await response.json() as { error?: string }; if (!response.ok) throw new Error(payload.error || "Unable to update application."); setMessage("Franchise workflow updated."); await loadApplications(); setApplication((current) => current ? { ...current, status: String(form.get("status")) as FranchiseApplicationStatus, notes: String(form.get("notes") || "") || null } : null); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Unable to update application."); } finally { setSaving(false); }
+  }
 
   async function lookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,6 +123,8 @@ export default function FranchiseApplicationLookup() {
           <small id="reference-help">Use the reference shared when the application was submitted.</small>
         </form>
 
+        <section className="franchise-queue"><header><h2>Recent applications</h2><span>{applications.length} records</span></header><div>{applications.map((item) => <button type="button" className={application?.referenceId === item.referenceId ? "selected" : ""} key={item.referenceId} onClick={() => { setApplication(item); setReferenceId(item.referenceId); setViewState("found"); setMessage(""); }}><b>{item.applicantName || "Unnamed applicant"}</b><small>{item.referenceId} · {item.selectedCity}</small><span className={`application-status status-${item.status.toLowerCase().replace("_", "-")}`}>{statusLabels[item.status]}</span></button>)}</div></section>
+
         {viewState === "empty" && <section className="lookup-state"><span aria-hidden="true">⌕</span><h2>Search for an application</h2><p>Enter a franchise reference ID above to view the applicant’s details.</p></section>}
         {viewState === "loading" && <section className="lookup-state" aria-live="polite"><span className="lookup-spinner" aria-hidden="true" /><h2>Loading application</h2><p>Retrieving the latest record securely…</p></section>}
         {viewState === "not-found" && <section className="lookup-state lookup-not-found" role="status"><span aria-hidden="true">?</span><h2>Application not found</h2><p>{message}</p></section>}
@@ -125,6 +145,7 @@ export default function FranchiseApplicationLookup() {
           </div>
           <section className="application-long-detail"><span className="detail-label">EXPERIENCE / BACKGROUND</span><p>{display(application.experienceBackground)}</p></section>
           {application.notes && <section className="application-long-detail application-notes"><span className="detail-label">INTERNAL NOTES</span><p>{application.notes}</p></section>}
+          <form className="franchise-review-form" onSubmit={update}><label>Status<select name="status" defaultValue={application.status}>{franchiseApplicationStatuses.map((item) => <option value={item} key={item}>{statusLabels[item]}</option>)}</select></label><label>Assigned owner<input name="assigned_to" maxLength={120} /></label><label className="franchise-review-notes">Internal notes<textarea name="notes" defaultValue={application.notes || ""} maxLength={2000} /></label><button className="checkout-button" disabled={saving}>{saving ? "Saving…" : "Save workflow"}</button></form>
         </article>}
       </>}
       {!authorized && message && <p className="admin-access-error" role="alert">{message}</p>}

@@ -6,6 +6,10 @@ node_modules
 *.tsbuildinfo
 .DS_Store
 service-account*.json
+.tools/
+/output/
+__pycache__/
+*.py[cod]
 
 # Serwist generated files
 public/sw.js

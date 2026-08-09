@@ -1,0 +1,4 @@
+﻿timestamp_utc,provider,operation,source_url,query_summary,status,attempt,result_count,duration_ms,error
+2026-08-08T07:57:43.425989+00:00,Synthetic fixture,discover_schools,file:///C:/Users/Malathy/Food/launch/research/sample/fixture.json,synthetic fixture for Chennai,success,1,2,0,
+2026-08-08T07:57:43.426579+00:00,Synthetic fixture,find_apartments,file:///C:/Users/Malathy/Food/launch/research/sample/fixture.json,synthetic fixture within 3 km of Sample Adyar School A,success,1,4,0,
+2026-08-08T07:57:43.426933+00:00,Synthetic fixture,find_apartments,file:///C:/Users/Malathy/Food/launch/research/sample/fixture.json,synthetic fixture within 3 km of Sample Adyar School B,success,1,4,0,

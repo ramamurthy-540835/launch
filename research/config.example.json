@@ -1,0 +1,14 @@
+{
+  "overpass_endpoint": "https://overpass-api.de/api/interpreter",
+  "user_agent": "LunchBoxResearch/1.0 (https://github.com/Kapi1801/launch)",
+  "rate_limit_seconds": 2.0,
+  "timeout_seconds": 240,
+  "retries": 3,
+  "max_schools": 25,
+  "gcs_upload": {
+    "enabled": true,
+    "project": "chennaifood",
+    "bucket": "chennaifood",
+    "prefix": "marketing/research/runs"
+  }
+}
