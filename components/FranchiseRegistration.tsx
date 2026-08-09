@@ -3,13 +3,13 @@
 import { FormEvent, useState } from "react";
 
 type Field = "name" | "companyName" | "category" | "area" | "address" | "contactName" | "phone" | "email" | "website" | "latitude" | "longitude";
-type Props = { initialArea?: string; opportunityId?: string; onSuccess?: () => void };
+type Props = { initialArea?: string; opportunityId?: string; onSuccess?: () => void; redirectToPayment?: boolean };
 
 const fields: { id: Field; label: string; type?: string; required?: boolean; wide?: boolean }[] = [
   { id: "name", label: "Franchise name", required: true }, { id: "companyName", label: "Company name", required: true }, { id: "category", label: "Business category", required: true }, { id: "area", label: "Chennai area", required: true }, { id: "address", label: "Full address", required: true, wide: true }, { id: "contactName", label: "Contact person", required: true }, { id: "phone", label: "10-digit mobile", required: true, type: "tel" }, { id: "email", label: "Business email", required: true, type: "email" }, { id: "website", label: "Website", type: "url" }, { id: "latitude", label: "Latitude", type: "number" }, { id: "longitude", label: "Longitude", type: "number" },
 ];
 
-export default function FranchiseRegistration({ initialArea = "", opportunityId = "", onSuccess }: Props) {
+export default function FranchiseRegistration({ initialArea = "", opportunityId = "", onSuccess, redirectToPayment = false }: Props) {
   const [message, setMessage] = useState(""); const [errors, setErrors] = useState<Record<string, string[]>>({}); const [busy, setBusy] = useState(false); const [reference, setReference] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setErrors({}); setMessage("");
@@ -17,6 +17,7 @@ export default function FranchiseRegistration({ initialArea = "", opportunityId 
       const response = await fetch("/api/franchise-applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) });
       const body = await response.json();
       if (!response.ok) { setErrors(body.fields || {}); setMessage(body.error || "Unable to submit your application."); return; }
+      if (redirectToPayment) { window.location.assign(`/franchise/payment?applicationId=${encodeURIComponent(body.id)}`); return; }
       setReference(body.id);
     } catch { setMessage("Unable to submit your application. Please try again."); }
     finally { setBusy(false); }
