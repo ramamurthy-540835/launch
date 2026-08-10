@@ -14,6 +14,7 @@ import {
 import styles from "./marketing.module.css";
 import nearbyStyles from "./nearby.module.css";
 import outreachStyles from "./outreach.module.css";
+import paginationStyles from "./pagination.module.css";
 
 type LeadStage = "New" | "Contacted" | "Interested" | "Meeting";
 type SavedLead = MarketingLead & {
@@ -30,6 +31,7 @@ type CampaignPreviewItem = {
 
 const stages: LeadStage[] = ["New", "Contacted", "Interested", "Meeting"];
 const storageKey = "lunchbox-marketing-leads-v1";
+const resultsPerPage = 10;
 
 export default function MarketingPage() {
   const [city, setCity] = useState<MarketingCity>("Chennai");
@@ -38,6 +40,7 @@ export default function MarketingPage() {
   const [audience, setAudience] = useState<AudienceType>("schools");
   const [keyword, setKeyword] = useState("");
   const [resultLimit, setResultLimit] = useState(50);
+  const [resultPage, setResultPage] = useState(1);
   const [campaignName, setCampaignName] = useState("Chennai school lunch pilot");
   const [results, setResults] = useState<MarketingLead[]>([]);
   const [saved, setSaved] = useState<SavedLead[]>([]);
@@ -73,6 +76,7 @@ export default function MarketingPage() {
   async function discover() {
     setLoading(true);
     setError("");
+    setResultPage(1);
     try {
       const params = new URLSearchParams({ city, zone, area, audience, keyword, limit: String(resultLimit) });
       const response = await fetch(`/api/marketing/search?${params}`);
@@ -144,17 +148,19 @@ export default function MarketingPage() {
   }
 
   const activeCityLeads = useMemo(() => saved.filter((lead) => lead.city === city), [saved, city]);
+  const resultPageCount = Math.ceil(results.length / resultsPerPage);
+  const pagedResults = results.slice((resultPage - 1) * resultsPerPage, resultPage * resultsPerPage);
   const zones = Object.keys(marketingGeography[city]);
   const areas = (marketingGeography[city] as Record<string, readonly string[]>)[zone] || [];
   function changeCity(nextCity: MarketingCity) {
     const nextZones = Object.keys(marketingGeography[nextCity]);
     const nextZone = nextZones[0];
     const nextAreas = (marketingGeography[nextCity] as Record<string, readonly string[]>)[nextZone];
-    setCity(nextCity); setZone(nextZone); setArea(nextAreas[0]); setResults([]); setSelectedSchool(null); setCommunities([]);
+    setCity(nextCity); setZone(nextZone); setArea(nextAreas[0]); setResults([]); setResultPage(1); setSelectedSchool(null); setCommunities([]);
   }
   function changeZone(nextZone: string) {
     const nextAreas = (marketingGeography[city] as Record<string, readonly string[]>)[nextZone] || [];
-    setZone(nextZone); setArea(nextAreas[0] || ""); setResults([]); setSelectedSchool(null); setCommunities([]);
+    setZone(nextZone); setArea(nextAreas[0] || ""); setResults([]); setResultPage(1); setSelectedSchool(null); setCommunities([]);
   }
   const contacted = saved.filter((lead) => lead.stage !== "New").length;
   const interested = saved.filter((lead) => lead.stage === "Interested" || lead.stage === "Meeting").length;
@@ -193,10 +199,10 @@ export default function MarketingPage() {
             <label><span>Campaign name</span><input value={campaignName} onChange={(event) => setCampaignName(event.target.value)} maxLength={60} /></label>
             <label><span>City</span><select value={city} onChange={(event) => changeCity(event.target.value as MarketingCity)}>{marketingCities.map((item) => <option key={item}>{item}</option>)}</select></label>
             <label><span>Zone</span><select value={zone} onChange={(event) => changeZone(event.target.value)}>{zones.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Area</span><select value={area} onChange={(event) => setArea(event.target.value)}>{areas.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Audience</span><select value={audience} onChange={(event) => setAudience(event.target.value as AudienceType)}>{Object.entries(audienceTypes).map(([id, item]) => <option value={id} key={id}>{item.label}</option>)}</select></label>
-            <label><span>Results to show</span><select value={resultLimit} onChange={(event) => setResultLimit(Number(event.target.value))}>{[20, 30, 40, 50, 60, 70, 80, 90, 100].map((count) => <option value={count} key={count}>{count}</option>)}</select></label>
-            <label><span>Optional search phrase</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder={audienceTypes[audience].searchTerm} maxLength={80} /></label>
+            <label><span>Area</span><select value={area} onChange={(event) => { setArea(event.target.value); setResultPage(1); }}>{areas.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label><span>Audience</span><select value={audience} onChange={(event) => { setAudience(event.target.value as AudienceType); setResultPage(1); }}>{Object.entries(audienceTypes).map(([id, item]) => <option value={id} key={id}>{item.label}</option>)}</select></label>
+            <label><span>Results to find</span><select value={resultLimit} onChange={(event) => { setResultLimit(Number(event.target.value)); setResultPage(1); }}>{[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((count) => <option value={count} key={count}>{count}</option>)}</select></label>
+            <label><span>Search by keyword</span><input value={keyword} onChange={(event) => { setKeyword(event.target.value); setResultPage(1); }} placeholder={`Example: CBSE ${audienceTypes[audience].searchTerm}`} maxLength={80} /></label>
             <button onClick={discover} disabled={loading}>{loading ? "Searching…" : "Discover leads"}<b>→</b></button>
           </div>
           <div className={styles.intent}><b>{audienceTypes[audience].label}:</b> {audienceTypes[audience].intent}</div>
@@ -204,8 +210,8 @@ export default function MarketingPage() {
 
         {error && <div className={styles.error}><b>Search unavailable</b><span>{error}</span></div>}
         {(results.length > 0 || query) && <section className={styles.results}>
-          <div className={styles.resultHead}><div><span>SEARCH RESULTS</span><h2>{results.length} opportunities found</h2><p>{query}</p></div><button onClick={() => results.forEach(saveLead)}>Save all results</button></div>
-          <div className={styles.leadGrid}>{results.map((lead) => {
+          <div className={styles.resultHead}><div><span>SEARCH RESULTS</span><h2>{results.length} opportunities found</h2><p>{query} · Showing 10 per page</p></div><button onClick={() => results.forEach(saveLead)}>Save all results</button></div>
+          <div className={styles.leadGrid}>{pagedResults.map((lead) => {
             const isSaved = saved.some((item) => item.id === lead.id);
             return <article className={styles.leadCard} key={lead.id}>
               <div className={styles.leadTop}><span>{lead.position}</span><div><small>{lead.type}</small><h3>{lead.name}</h3></div></div>
@@ -215,6 +221,11 @@ export default function MarketingPage() {
               {lead.audience === "schools" && lead.latitude != null && lead.longitude != null && <button className={nearbyStyles.schoolSelect} onClick={() => void findNearby(lead)}>Use this school</button>}
             </article>;
           })}</div>
+          {resultPageCount > 1 && <nav className={paginationStyles.pagination} aria-label="Search result pages">
+            <button onClick={() => setResultPage((page) => Math.max(1, page - 1))} disabled={resultPage === 1} aria-label="Previous page">‹</button>
+            {Array.from({ length: resultPageCount }, (_, index) => index + 1).map((page) => <button key={page} className={page === resultPage ? paginationStyles.currentPage : ""} onClick={() => setResultPage(page)} aria-current={page === resultPage ? "page" : undefined}>{page}</button>)}
+            <button onClick={() => setResultPage((page) => Math.min(resultPageCount, page + 1))} disabled={resultPage === resultPageCount} aria-label="Next page">›</button>
+          </nav>}
         </section>}
         {selectedSchool && <section className={nearbyStyles.nearbyPanel}>
           <div className={nearbyStyles.nearbyHead}><div><span>SCHOOL-CENTRED DISCOVERY</span><h2>{selectedSchool.name}</h2><p>{selectedSchool.address}</p></div><div><label>Search radius<select value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))}><option value={2}>2 km</option><option value={5}>5 km</option><option value={8}>8 km</option><option value={10}>10 km</option></select></label><button disabled={nearbyLoading} onClick={() => void findNearby()}>{nearbyLoading ? "Searching…" : "Find communities"}</button></div></div>
