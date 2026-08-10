@@ -2,6 +2,7 @@ node_modules
 .next
 .env
 .env.local
+rzp-key.csv
 *.log
 *.tsbuildinfo
 .DS_Store
