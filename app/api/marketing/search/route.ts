@@ -16,8 +16,55 @@ type GooglePlace = {
   nationalPhoneNumber?: string;
   websiteUri?: string;
   googleMapsUri?: string;
+  primaryType?: string;
   primaryTypeDisplayName?: { text?: string };
+  types?: string[];
 };
+
+const allowedPlaceTypes: Partial<Record<AudienceType, ReadonlySet<string>>> = {
+  schools: new Set(["school", "primary_school", "secondary_school", "preschool"]),
+  colleges: new Set(["university", "college"]),
+};
+
+function isAllowedPlace(place: GooglePlace, audience: AudienceType) {
+  const allowedTypes = allowedPlaceTypes[audience];
+  if (!allowedTypes) return true;
+  const types = new Set([place.primaryType, ...(place.types || [])].filter((type): type is string => Boolean(type)));
+  return [...allowedTypes].some((type) => types.has(type));
+}
+
+function normalize(value?: string) {
+  return (value || "").normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function distanceMetres(left: GooglePlace, right: GooglePlace) {
+  const leftLat = left.location?.latitude; const leftLng = left.location?.longitude;
+  const rightLat = right.location?.latitude; const rightLng = right.location?.longitude;
+  if (leftLat == null || leftLng == null || rightLat == null || rightLng == null) return Number.POSITIVE_INFINITY;
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const latDistance = radians(rightLat - leftLat); const lngDistance = radians(rightLng - leftLng);
+  const a = Math.sin(latDistance / 2) ** 2 + Math.cos(radians(leftLat)) * Math.cos(radians(rightLat)) * Math.sin(lngDistance / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function uniquePlaces(places: GooglePlace[]) {
+  const unique: GooglePlace[] = [];
+  const placeIds = new Set<string>();
+  const exactListings = new Set<string>();
+  for (const place of places) {
+    if (place.id && placeIds.has(place.id)) continue;
+    const name = normalize(place.displayName?.text);
+    const address = normalize(place.formattedAddress);
+    const listingKey = `${name}|${address}`;
+    if (exactListings.has(listingKey)) continue;
+    const nearbyDuplicate = unique.some((candidate) => normalize(candidate.displayName?.text) === name && distanceMetres(candidate, place) <= 200);
+    if (nearbyDuplicate) continue;
+    if (place.id) placeIds.add(place.id);
+    exactListings.add(listingKey);
+    unique.push(place);
+  }
+  return unique;
+}
 
 function isCity(value: string): value is MarketingCity {
   return marketingCities.includes(value as MarketingCity);
@@ -51,7 +98,7 @@ export async function GET(request: NextRequest) {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.primaryTypeDisplayName,nextPageToken",
+          "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.primaryType,places.primaryTypeDisplayName,places.types,nextPageToken",
         },
         body: JSON.stringify({
           textQuery: query, pageSize, pageToken, languageCode: "en", regionCode: "IN",
@@ -66,7 +113,8 @@ export async function GET(request: NextRequest) {
       pageToken = data.nextPageToken;
     } while (places.length < limit && pageToken);
 
-    const leads: MarketingLead[] = places.slice(0, limit).flatMap((place, index) => {
+    const filteredPlaces = uniquePlaces(places.filter((place) => isAllowedPlace(place, audience)));
+    const leads: MarketingLead[] = filteredPlaces.slice(0, limit).flatMap((place, index) => {
       if (!place.displayName?.text) return [];
       return [{
         id: place.id || `${city}-${area}-${audience}-${index}`, placeId: place.id,
@@ -77,7 +125,7 @@ export async function GET(request: NextRequest) {
         latitude: place.location?.latitude, longitude: place.location?.longitude,
       }];
     });
-    return NextResponse.json({ query, leads, limit, provider: "Google Places API (New)", fetchedAt: new Date().toISOString() });
+    return NextResponse.json({ query, leads, limit, filteredCount: places.length - filteredPlaces.length, provider: "Google Places API (New)", fetchedAt: new Date().toISOString() });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "TimeoutError";
     return NextResponse.json({ error: timedOut ? "Google Places search timed out." : "Discovery is temporarily unavailable." }, { status: 502 });
