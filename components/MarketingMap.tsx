@@ -1,15 +1,11 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any -- Google Maps SDK is loaded dynamically by multiple map components. */
 
 import { useEffect, useRef, useState } from "react";
 import type { MarketingLead } from "@/lib/marketing";
 
 type Props = { school: MarketingLead; communities: MarketingLead[] };
-type MapsApi = {
-  Map: new (node: HTMLElement, options: Record<string, unknown>) => { fitBounds(bounds: unknown): void };
-  Marker: new (options: Record<string, unknown>) => unknown;
-  LatLngBounds: new () => { extend(point: { lat: number; lng: number }): void };
-};
-declare global { interface Window { google?: { maps: MapsApi } } }
+declare global { interface Window { google?: any } }
 
 export default function MarketingMap({ school, communities }: Props) {
   const node = useRef<HTMLDivElement>(null);

@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "payment_expires_at", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "route_stops_daily",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "route_id", "order": "ASCENDING" },
+        { "fieldPath": "service_date", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
