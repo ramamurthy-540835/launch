@@ -83,6 +83,17 @@ gcloud run deploy lunchbox --source . --region asia-south1 --allow-unauthenticat
 
 ## Important production additions
 
+### Automated outreach configuration
+
+The marketing workspace can prepare audience-specific campaigns for schools, colleges, apartment communities and parent hubs. Preview mode works without provider credentials. Live sends require explicit per-channel consent on every recipient and all of these server-side settings:
+
+- `SENDGRID_API_KEY` and a verified `SENDGRID_FROM_EMAIL`
+- `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`
+- `CAMPAIGN_ADMIN_TOKEN` to prevent public use of the send endpoint
+- `NEXT_PUBLIC_APP_URL` so Meta and email recipients can load the public campaign images
+
+Store API keys and the admin token in Google Secret Manager and expose them to Cloud Run as secrets; never use browser-prefixed environment variables for credentials. WhatsApp sends use approved media templates named `lunchbox_school_intro`, `lunchbox_college_intro`, and `lunchbox_community_intro`. The API remains in preview-only operation until the provider secrets exist.
+
 - Authentication and role-based admin access
 - School/campus master data and delivery cut-off calendar
 - Payment idempotency, webhook verification, cancellation and refund handling

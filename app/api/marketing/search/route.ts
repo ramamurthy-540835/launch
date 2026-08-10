@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
   const area = request.nextUrl.searchParams.get("area")?.trim() || "";
   const audience = request.nextUrl.searchParams.get("audience")?.trim() || "";
   const keyword = request.nextUrl.searchParams.get("keyword")?.trim().slice(0, 80) || "";
+  const requestedLimit = Number(request.nextUrl.searchParams.get("limit") || 50);
+  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 50;
   if (!isCity(city) || !isAudience(audience)) return NextResponse.json({ error: "Choose a supported city and audience." }, { status: 400 });
   const zones = marketingGeography[city] as Record<string, readonly string[]>;
   if (!zone || !zones[zone] || !area || !zones[zone].includes(area)) {
@@ -40,23 +42,31 @@ export async function GET(request: NextRequest) {
   const query = `${keyword || audienceTypes[audience].searchTerm} in ${area}, ${city}, Tamil Nadu`;
   const center = cityCenters[city];
   try {
-    const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.primaryTypeDisplayName",
-      },
-      body: JSON.stringify({
-        textQuery: query, pageSize: 20, languageCode: "en", regionCode: "IN",
-        locationBias: { circle: { center, radius: 25_000 } },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
-    });
-    const data = await response.json() as { places?: GooglePlace[]; error?: { message?: string } };
-    if (!response.ok) return NextResponse.json({ error: data.error?.message || "Google Places search failed." }, { status: response.status });
-    const leads: MarketingLead[] = (data.places || []).flatMap((place, index) => {
+    const places: GooglePlace[] = [];
+    let pageToken: string | undefined;
+    do {
+      const pageSize = Math.min(20, limit - places.length);
+      const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.primaryTypeDisplayName,nextPageToken",
+        },
+        body: JSON.stringify({
+          textQuery: query, pageSize, pageToken, languageCode: "en", regionCode: "IN",
+          locationBias: { circle: { center, radius: 25_000 } },
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
+      });
+      const data = await response.json() as { places?: GooglePlace[]; nextPageToken?: string; error?: { message?: string } };
+      if (!response.ok) return NextResponse.json({ error: data.error?.message || "Google Places search failed." }, { status: response.status });
+      places.push(...(data.places || []));
+      pageToken = data.nextPageToken;
+    } while (places.length < limit && pageToken);
+
+    const leads: MarketingLead[] = places.slice(0, limit).flatMap((place, index) => {
       if (!place.displayName?.text) return [];
       return [{
         id: place.id || `${city}-${area}-${audience}-${index}`, placeId: place.id,
@@ -67,7 +77,7 @@ export async function GET(request: NextRequest) {
         latitude: place.location?.latitude, longitude: place.location?.longitude,
       }];
     });
-    return NextResponse.json({ query, leads, provider: "Google Places API (New)", fetchedAt: new Date().toISOString() });
+    return NextResponse.json({ query, leads, limit, provider: "Google Places API (New)", fetchedAt: new Date().toISOString() });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "TimeoutError";
     return NextResponse.json({ error: timedOut ? "Google Places search timed out." : "Discovery is temporarily unavailable." }, { status: 502 });
