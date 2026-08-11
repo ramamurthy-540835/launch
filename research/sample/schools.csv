@@ -1,0 +1,3 @@
+School Name,School Address,Locality,PIN Code,Latitude,Longitude,School Type,Source URL,Source Type
+Sample Adyar School A,"1 Sample School Road, Adyar, Chennai 600020",Adyar,600020,13.0067,80.2575,CBSE (synthetic fixture),https://example.invalid/synthetic/school-a,Synthetic fixture
+Sample Adyar School B,"2 Sample Avenue, Adyar, Chennai 600020",Adyar,600020,13.012,80.25,State Board (synthetic fixture),https://example.invalid/synthetic/school-b,Synthetic fixture
