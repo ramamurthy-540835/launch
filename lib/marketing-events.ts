@@ -1,12 +1,21 @@
 import type { MarketingCity } from "@/lib/marketing";
 
-export const eventTypes = ["TASTING_DAY", "PTA_STALL", "CAMPUS_SAMPLING", "COMMUNITY_TALK", "FRANCHISE_LAUNCH", "OTHER"] as const;
+export const eventCategories = [
+  "Leadership Skills", "Sports", "Women Empowerment", "Skill Development", "Spoken English",
+  "Numerical Ability", "Communication Skills", "Science", "Mathematics", "Physics", "Biology",
+  "Science Exhibition", "Maths Olympiad", "Group Events", "Cooking Competition", "Food Festival",
+  "Cultural Events", "Dance", "Music", "Yoga", "Arts", "Crochet", "IT Classes", "Fitness",
+  "Healthcare", "Food Workshop", "Talent Competition", "Motivation Speech", "Gratitude Program",
+  "Educational Trip", "School Cleanliness Drive", "Tree Plantation", "Career Guidance",
+  "Higher Education (IIT, NEET)", "Job Training", "College Awareness", "Cultural Fest", "UNO Day",
+  "Subject-wise Competitions", "Scholarship Awareness", "Hackathon", "Job Skill Development",
+] as const;
 export const eventStatuses = ["PLANNED", "CONFIRMED", "COMPLETED", "CANCELLED", "POSTPONED"] as const;
 export const activityTypes = ["CALL", "EMAIL", "WHATSAPP", "SMS", "IN_PERSON_VISIT", "OTHER"] as const;
 export const activityDirections = ["OUTBOUND", "INBOUND"] as const;
 export const activityOutcomes = ["NO_ANSWER", "FOLLOW_UP_NEEDED", "INTERESTED", "NOT_INTERESTED", "MEETING_SCHEDULED", "CONVERTED"] as const;
 
-export type MarketingEventType = (typeof eventTypes)[number];
+export type EventCategory = (typeof eventCategories)[number];
 export type MarketingEventStatus = (typeof eventStatuses)[number];
 export type OutreachActivityType = (typeof activityTypes)[number];
 export type OutreachDirection = (typeof activityDirections)[number];
@@ -15,7 +24,7 @@ export type OutreachOutcome = (typeof activityOutcomes)[number];
 export type MarketingEvent = {
   eventId: string;
   title: string;
-  eventType: MarketingEventType;
+  eventCategory: EventCategory;
   city: MarketingCity;
   zone: string;
   area: string;
@@ -51,10 +60,6 @@ export type OutreachActivity = {
 export const marketingEventsStorageKey = "lunchbox-marketing-events-v1";
 export const outreachActivitiesStorageKey = "lunchbox-outreach-activities-v1";
 
-export const eventTypeLabels: Record<MarketingEventType, string> = {
-  TASTING_DAY: "Tasting day", PTA_STALL: "PTA stall", CAMPUS_SAMPLING: "Campus sampling",
-  COMMUNITY_TALK: "Community talk", FRANCHISE_LAUNCH: "Franchise launch", OTHER: "Other",
-};
 export const eventStatusLabels: Record<MarketingEventStatus, string> = {
   PLANNED: "Planned", CONFIRMED: "Confirmed", COMPLETED: "Completed", CANCELLED: "Cancelled", POSTPONED: "Postponed",
 };
@@ -85,9 +90,9 @@ export function buildMarketingSeeds(leads: SeedLead[], now = new Date()) {
   const base = selected[0] || { id: "sample-school", name: "Adyar Pilot School", city: "Chennai" as const, zone: "East / North-East Chennai", area: "Adyar" };
   const second = selected[1] || base; const third = selected[2] || second;
   const events: MarketingEvent[] = [
-    { eventId: "sample-tasting", title: `${base.name} tasting day`, eventType: "TASTING_DAY", city: base.city, zone: base.zone || "", area: base.area || "", linkedLeadIds: [base.id], scheduledDate: isoDate(5), scheduledTimeStart: "11:00", scheduledTimeEnd: "13:00", venue: base.name, ownerName: "Priya", status: "CONFIRMED", expectedAttendance: 80, notes: "Vegetarian tasting menu and parent feedback cards.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
-    { eventId: "sample-pta", title: `${second.name} PTA introduction`, eventType: "PTA_STALL", city: second.city, zone: second.zone || "", area: second.area || "", linkedLeadIds: [second.id], scheduledDate: isoDate(12), scheduledTimeStart: "16:00", scheduledTimeEnd: "18:00", venue: second.name, ownerName: "Arun", status: "PLANNED", expectedAttendance: 45, notes: "Bring pricing cards and allergy policy handout.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
-    { eventId: "sample-talk", title: `${third.name} food-safety talk`, eventType: "COMMUNITY_TALK", city: third.city, zone: third.zone || "", area: third.area || "", linkedLeadIds: [third.id], scheduledDate: isoDate(-8), scheduledTimeStart: "10:30", scheduledTimeEnd: "11:30", venue: third.name, ownerName: "Meena", status: "COMPLETED", expectedAttendance: 30, actualAttendance: 34, leadsGeneratedCount: 7, notes: "Strong interest in weekday subscriptions.", createdAt: isoTime(-16, 9), updatedAt: isoTime(-8, 12) },
+    { eventId: "sample-tasting", title: `${base.name} tasting day`, eventCategory: "Food Workshop", city: base.city, zone: base.zone || "", area: base.area || "", linkedLeadIds: [base.id], scheduledDate: isoDate(5), scheduledTimeStart: "11:00", scheduledTimeEnd: "13:00", venue: base.name, ownerName: "Priya", status: "CONFIRMED", expectedAttendance: 80, notes: "Vegetarian tasting menu and parent feedback cards.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
+    { eventId: "sample-pta", title: `${second.name} PTA introduction`, eventCategory: "Communication Skills", city: second.city, zone: second.zone || "", area: second.area || "", linkedLeadIds: [second.id], scheduledDate: isoDate(12), scheduledTimeStart: "16:00", scheduledTimeEnd: "18:00", venue: second.name, ownerName: "Arun", status: "PLANNED", expectedAttendance: 45, notes: "Bring pricing cards and allergy policy handout.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
+    { eventId: "sample-talk", title: `${third.name} food-safety talk`, eventCategory: "Healthcare", city: third.city, zone: third.zone || "", area: third.area || "", linkedLeadIds: [third.id], scheduledDate: isoDate(-8), scheduledTimeStart: "10:30", scheduledTimeEnd: "11:30", venue: third.name, ownerName: "Meena", status: "COMPLETED", expectedAttendance: 30, actualAttendance: 34, leadsGeneratedCount: 7, notes: "Strong interest in weekday subscriptions.", createdAt: isoTime(-16, 9), updatedAt: isoTime(-8, 12) },
   ];
   const activities: OutreachActivity[] = [
     { activityId: "sample-call-1", leadId: base.id, activityType: "CALL", direction: "OUTBOUND", outcome: "MEETING_SCHEDULED", notes: "Coordinator confirmed a tasting discussion.", performedBy: "Priya", performedAt: isoTime(-1, 11), nextFollowUpDate: isoDate(1), createdAt: isoTime(-1, 11) },
