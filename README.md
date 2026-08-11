@@ -140,6 +140,10 @@ The marketing workspace can prepare audience-specific campaigns for schools, col
 
 Store API keys and the admin token in Google Secret Manager and expose them to Cloud Run as secrets; never use browser-prefixed environment variables for credentials. WhatsApp sends use approved media templates named `lunchbox_school_intro`, `lunchbox_college_intro`, and `lunchbox_community_intro`. The API remains in preview-only operation until the provider secrets exist.
 
+### Shared Marketing OS workspace
+
+Marketing leads, scheduled events and outreach activities are stored in Firestore through the authenticated `/api/marketing/workspace` server route. Configure the Firebase web values (`NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, and optionally `NEXT_PUBLIC_FIREBASE_APP_ID`), enable email/password sign-in in Firebase Authentication, add the Cloud Run domains to Authorized domains, and set `MARKETING_ADMIN_EMAIL` to the authorized staff account. Existing browser-local Marketing OS records are imported once after the authorized account signs in.
+
 - Authentication and role-based admin access
 - School/campus master data and delivery cut-off calendar
 - Payment idempotency, webhook verification, cancellation and refund handling

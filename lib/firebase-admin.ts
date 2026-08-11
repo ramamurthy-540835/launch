@@ -30,6 +30,16 @@ async function decodeRequest(request: Request) {
   }
 }
 
+export async function verifyMarketingAdmin(request: Request) {
+  const decoded = await decodeRequest(request);
+  const allowedEmail = (process.env.MARKETING_ADMIN_EMAIL || "").trim().toLowerCase();
+  if (!allowedEmail) throw new ParentAuthError("Marketing administrator access is not configured.");
+  if (!decoded.email_verified || decoded.email?.toLowerCase() !== allowedEmail) {
+    throw new ParentAuthError("This account is not allowed to access Marketing OS.");
+  }
+  return { uid: decoded.uid, email: decoded.email };
+}
+
 function stringArray(value: unknown) { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
 
 export function canAccessFranchise(claims: { admin?: unknown; roles?: unknown; franchise_ids?: unknown; franchise_id?: unknown }, franchiseId: string) {

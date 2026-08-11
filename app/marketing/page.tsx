@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MarketingMap from "@/components/MarketingMap";
+import MarketingEvents from "@/components/MarketingEvents";
+import MarketingSignIn from "@/components/MarketingSignIn";
+import { firebaseAuth } from "@/lib/firebase-client";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   audienceTypes,
   marketingCities,
@@ -11,6 +15,7 @@ import {
   type MarketingCity,
   type MarketingLead,
 } from "@/lib/marketing";
+import { marketingEventsStorageKey, outreachActivitiesStorageKey, type MarketingEvent, type OutreachActivity } from "@/lib/marketing-events";
 import styles from "./marketing.module.css";
 import nearbyStyles from "./nearby.module.css";
 import outreachStyles from "./outreach.module.css";
@@ -44,10 +49,17 @@ export default function MarketingPage() {
   const [campaignName, setCampaignName] = useState("Chennai school lunch pilot");
   const [results, setResults] = useState<MarketingLead[]>([]);
   const [saved, setSaved] = useState<SavedLead[]>([]);
+  const [events, setEvents] = useState<MarketingEvent[]>([]);
+  const [activities, setActivities] = useState<OutreachActivity[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"discover" | "pipeline" | "outreach">("discover");
+  const [tab, setTab] = useState<"discover" | "pipeline" | "outreach" | "events">("discover");
+  const [activityLeadId, setActivityLeadId] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<MarketingLead | null>(null);
   const [communities, setCommunities] = useState<MarketingLead[]>([]);
   const [radiusKm, setRadiusKm] = useState(5);
@@ -61,16 +73,53 @@ export default function MarketingPage() {
   const [campaignImage, setCampaignImage] = useState("auto");
   const [customImageUrl, setCustomImageUrl] = useState("");
 
-  useEffect(() => {
+  useEffect(() => { const auth = firebaseAuth(); if (!auth) { setAuthReady(true); return; } return onAuthStateChanged(auth, (nextUser) => { setUser(nextUser); setAuthReady(true); }); }, []);
+  useEffect(() => { if (!user) return; void loadWorkspace(user); },
+    // Loading is intentionally keyed to the authenticated user session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user]);
+
+  async function authorizedFetch(path: string, init?: RequestInit) {
+    const activeUser = firebaseAuth()?.currentUser;
+    if (!activeUser) throw new Error("Sign in to use the shared Marketing OS workspace.");
+    const token = await activeUser.getIdToken();
+    const response = await fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...init?.headers } });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Shared workspace request failed.");
+    return body;
+  }
+
+  async function loadWorkspace(activeUser: User) {
+    setWorkspaceLoading(true); setWorkspaceError("");
     try {
-      const current = window.localStorage.getItem(storageKey);
-      if (current) setSaved(JSON.parse(current));
-    } catch { /* A malformed local cache should not block the workspace. */ }
-  }, []);
+      const token = await activeUser.getIdToken();
+      const response = await fetch("/api/marketing/workspace", { headers: { Authorization: `Bearer ${token}` } });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not load the shared workspace.");
+      const remoteLeads = (body.leads || []) as SavedLead[]; const remoteEvents = (body.events || []) as MarketingEvent[]; const remoteActivities = (body.activities || []) as OutreachActivity[];
+      const localLeads = readLocal<SavedLead>(storageKey); const localEvents = readLocal<MarketingEvent>(marketingEventsStorageKey); const localActivities = readLocal<OutreachActivity>(outreachActivitiesStorageKey);
+      const mergedLeads = mergeRecords(remoteLeads, localLeads, (item) => item.id); const mergedEvents = mergeRecords(remoteEvents, localEvents, (item) => item.eventId); const mergedActivities = mergeRecords(remoteActivities, localActivities, (item) => item.activityId);
+      setSaved(mergedLeads); setEvents(mergedEvents); setActivities(mergedActivities);
+      const imports = [...localLeads.map((record) => ["lead", record] as const), ...localEvents.map((record) => ["event", record] as const), ...localActivities.map((record) => ["activity", record] as const)];
+      if (imports.length) { await Promise.all(imports.map(([entity, record]) => authorizedFetch("/api/marketing/workspace", { method: "PUT", body: JSON.stringify({ entity, record }) }))); localStorage.removeItem(storageKey); localStorage.removeItem(marketingEventsStorageKey); localStorage.removeItem(outreachActivitiesStorageKey); }
+    } catch (reason) { setWorkspaceError(reason instanceof Error ? reason.message : "Could not load the shared workspace."); }
+    finally { setWorkspaceLoading(false); }
+  }
 
   function persist(next: SavedLead[]) {
+    const previous = saved;
     setSaved(next);
-    window.localStorage.setItem(storageKey, JSON.stringify(next));
+    void syncRecords("lead", previous, next, (item) => item.id);
+  }
+
+  function persistEvents(next: MarketingEvent[]) { const previous = events; setEvents(next); void syncRecords("event", previous, next, (item) => item.eventId); }
+  function persistActivities(next: OutreachActivity[]) { const previous = activities; setActivities(next); void syncRecords("activity", previous, next, (item) => item.activityId); }
+  async function syncRecords<T>(entity: "lead" | "event" | "activity", previous: T[], next: T[], id: (item: T) => string) {
+    try {
+      const previousById = new Map(previous.map((item) => [id(item), item])); const nextById = new Map(next.map((item) => [id(item), item]));
+      const writes = next.filter((item) => JSON.stringify(previousById.get(id(item))) !== JSON.stringify(item)).map((record) => authorizedFetch("/api/marketing/workspace", { method: "PUT", body: JSON.stringify({ entity, record }) }));
+      const deletes = previous.filter((item) => !nextById.has(id(item))).map((item) => authorizedFetch(`/api/marketing/workspace?entity=${entity}&id=${encodeURIComponent(id(item))}`, { method: "DELETE" }));
+      await Promise.all([...writes, ...deletes]);
+    } catch (reason) { setWorkspaceError(reason instanceof Error ? reason.message : "Could not save shared workspace changes."); }
   }
 
   async function discover() {
@@ -124,6 +173,15 @@ export default function MarketingPage() {
     persist(saved.map((lead) => lead.id === id ? { ...lead, ...patch } : lead));
   }
 
+  function updateLeadStage(id: string, stage: LeadStage) {
+    updateLead(id, { stage });
+  }
+
+  function openActivityForLead(id: string) {
+    setActivityLeadId(id);
+    setTab("events");
+  }
+
   function removeLead(id: string) {
     persist(saved.filter((lead) => lead.id !== id));
   }
@@ -167,6 +225,10 @@ export default function MarketingPage() {
   const outreach = buildOutreach(campaignName, city, audience);
   const outreachRecipients = saved;
 
+  if (!authReady) return <main className={styles.shell}><section className={styles.content}>Checking Marketing OS access…</section></main>;
+  if (!user) return <MarketingSignIn error={workspaceError} onError={setWorkspaceError} />;
+  if (workspaceLoading) return <main className={styles.shell}><section className={styles.content}>Loading shared Firestore workspace…</section></main>;
+
   return <main className={styles.shell}>
     <aside className={styles.sidebar}>
       <Link className={styles.brand} href="/"><span>L</span>LunchBox</Link>
@@ -175,22 +237,25 @@ export default function MarketingPage() {
         <button className={tab === "discover" ? styles.active : ""} onClick={() => setTab("discover")}><i>⌕</i>Discover</button>
         <button className={tab === "pipeline" ? styles.active : ""} onClick={() => setTab("pipeline")}><i>◎</i>Lead pipeline <b>{saved.length}</b></button>
         <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i>↗</i>Outreach kit</button>
+        <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i>◫</i>Events</button>
       </nav>
-      <div className={styles.sideNote}><strong>Private by design</strong><p>The Places web-service key stays on the server. Saved leads remain in this browser.</p></div>
+      <div className={styles.sideNote}><strong>Shared securely</strong><p>The Places key stays server-side. Leads, events and outreach are stored in Firestore for authorized devices.</p></div>
     </aside>
 
     <section className={styles.content}>
       <header className={styles.topbar}>
         <div><span>CAMPAIGN WORKSPACE</span><h1>{campaignName}</h1></div>
-        <Link href="/">View LunchBox site ↗</Link>
+        <div><Link href="/">View LunchBox site ↗</Link><button onClick={() => void signOut(firebaseAuth()!)}>Sign out</button></div>
       </header>
 
-      <div className={styles.metrics}>
+      {workspaceError && <div className={styles.error}><b>Shared workspace</b><span>{workspaceError}</span></div>}
+
+      {tab !== "events" && <div className={styles.metrics}>
         <Metric label="Saved leads" value={saved.length} note="Across four cities" />
         <Metric label="Contacted" value={contacted} note={saved.length ? `${Math.round(contacted / saved.length * 100)}% of pipeline` : "Start with discovery"} />
         <Metric label="Interested" value={interested} note="Qualified opportunities" />
         <Metric label="Active city" value={activeCityLeads.length} note={`${city} leads`} />
-      </div>
+      </div>}
 
       {tab === "discover" && <>
         <section className={styles.panel}>
@@ -240,13 +305,13 @@ export default function MarketingPage() {
         <div className={styles.panelHead}><div><span>PARTNER PIPELINE</span><h2>Turn discovery into conversations.</h2></div><p>Update each stage after calls, WhatsApp outreach, tastings, or meetings.</p></div>
         {saved.length ? <div className={styles.pipeline}>{saved.map((lead) => <article key={lead.id}>
           <div><small>{lead.city} · {audienceTypes[lead.audience].label}</small><h3>{lead.name}</h3><p>{lead.address}</p><p>{lead.eventsConducted || 0} events · {lead.studentsEnrolled || 0} students enrolled</p><select aria-label={`Response status for ${lead.name}`} value={lead.responseStatus || "no_response"} onChange={(event) => updateLead(lead.id, { responseStatus: event.target.value as SavedLead["responseStatus"] })}><option value="no_response">No response</option><option value="replied">Replied</option><option value="interested">Interested</option><option value="opted_out">Opted out</option></select></div>
-          <select value={lead.stage} onChange={(event) => updateLead(lead.id, { stage: event.target.value as LeadStage })}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
+          <select value={lead.stage} onChange={(event) => updateLeadStage(lead.id, event.target.value as LeadStage)}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
           <div className={outreachStyles.pipelineFields}>
             <label><span>Contact notes</span><input value={lead.notes} onChange={(event) => updateLead(lead.id, { notes: event.target.value })} placeholder="Next step or contact notes" /></label>
             <label><span>Events conducted</span><input type="number" min={0} step={1} value={lead.eventsConducted ?? 0} onChange={(event) => updateLead(lead.id, { eventsConducted: Math.max(0, Number(event.target.value) || 0) })} /></label>
             <label><span>Students enrolled</span><input type="number" min={0} step={1} value={lead.studentsEnrolled ?? 0} onChange={(event) => updateLead(lead.id, { studentsEnrolled: Math.max(0, Number(event.target.value) || 0) })} /></label>
           </div>
-          <div className={styles.rowActions}>{lead.phone && <a href={`tel:${lead.phone}`}>Call</a>}{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => removeLead(lead.id)}>Remove</button></div>
+          <div className={styles.rowActions}>{lead.phone && <a href={`tel:${lead.phone}`}>Call</a>}{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => openActivityForLead(lead.id)}>Log activity</button><button onClick={() => removeLead(lead.id)}>Remove</button></div>
         </article>)}</div> : <div className={styles.empty}><span>◎</span><h2>No saved leads yet.</h2><p>Use Discover to build your first local partner list.</p><button onClick={() => setTab("discover")}>Discover opportunities</button></div>}
       </section>}
 
@@ -300,6 +365,8 @@ export default function MarketingPage() {
           <CopyCard title="Call opener" text={outreach.call} />
         </div>
       </section>}
+
+      {tab === "events" && <MarketingEvents leads={saved} events={events} activities={activities} onEventsChange={persistEvents} onActivitiesChange={persistActivities} initialLeadId={activityLeadId} onInitialLeadHandled={() => setActivityLeadId("")} onLeadStageChange={updateLeadStage} />}
     </section>
   </main>;
 }
@@ -332,4 +399,15 @@ function buildWhatsAppUrl(phone: string, message: string) {
   let digits = phone.replace(/\D/g, "");
   if (digits.length === 10) digits = `91${digits}`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+
+function readLocal<T>(key: string): T[] {
+  try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T[] : []; }
+  catch { return []; }
+}
+
+function mergeRecords<T>(remote: T[], local: T[], id: (item: T) => string) {
+  const merged = new Map(remote.map((item) => [id(item), item]));
+  local.forEach((item) => merged.set(id(item), item));
+  return [...merged.values()];
 }
