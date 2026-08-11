@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MarketingMap from "@/components/MarketingMap";
+import MarketingEvents from "@/components/MarketingEvents";
 import {
   audienceTypes,
   marketingCities,
@@ -47,7 +48,8 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"discover" | "pipeline" | "outreach">("discover");
+  const [tab, setTab] = useState<"discover" | "pipeline" | "outreach" | "events">("discover");
+  const [activityLeadId, setActivityLeadId] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<MarketingLead | null>(null);
   const [communities, setCommunities] = useState<MarketingLead[]>([]);
   const [radiusKm, setRadiusKm] = useState(5);
@@ -124,6 +126,15 @@ export default function MarketingPage() {
     persist(saved.map((lead) => lead.id === id ? { ...lead, ...patch } : lead));
   }
 
+  function updateLeadStage(id: string, stage: LeadStage) {
+    updateLead(id, { stage });
+  }
+
+  function openActivityForLead(id: string) {
+    setActivityLeadId(id);
+    setTab("events");
+  }
+
   function removeLead(id: string) {
     persist(saved.filter((lead) => lead.id !== id));
   }
@@ -175,6 +186,7 @@ export default function MarketingPage() {
         <button className={tab === "discover" ? styles.active : ""} onClick={() => setTab("discover")}><i>⌕</i>Discover</button>
         <button className={tab === "pipeline" ? styles.active : ""} onClick={() => setTab("pipeline")}><i>◎</i>Lead pipeline <b>{saved.length}</b></button>
         <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i>↗</i>Outreach kit</button>
+        <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i>◫</i>Events</button>
       </nav>
       <div className={styles.sideNote}><strong>Private by design</strong><p>The Places web-service key stays on the server. Saved leads remain in this browser.</p></div>
     </aside>
@@ -185,12 +197,12 @@ export default function MarketingPage() {
         <Link href="/">View LunchBox site ↗</Link>
       </header>
 
-      <div className={styles.metrics}>
+      {tab !== "events" && <div className={styles.metrics}>
         <Metric label="Saved leads" value={saved.length} note="Across four cities" />
         <Metric label="Contacted" value={contacted} note={saved.length ? `${Math.round(contacted / saved.length * 100)}% of pipeline` : "Start with discovery"} />
         <Metric label="Interested" value={interested} note="Qualified opportunities" />
         <Metric label="Active city" value={activeCityLeads.length} note={`${city} leads`} />
-      </div>
+      </div>}
 
       {tab === "discover" && <>
         <section className={styles.panel}>
@@ -240,13 +252,13 @@ export default function MarketingPage() {
         <div className={styles.panelHead}><div><span>PARTNER PIPELINE</span><h2>Turn discovery into conversations.</h2></div><p>Update each stage after calls, WhatsApp outreach, tastings, or meetings.</p></div>
         {saved.length ? <div className={styles.pipeline}>{saved.map((lead) => <article key={lead.id}>
           <div><small>{lead.city} · {audienceTypes[lead.audience].label}</small><h3>{lead.name}</h3><p>{lead.address}</p><p>{lead.eventsConducted || 0} events · {lead.studentsEnrolled || 0} students enrolled</p><select aria-label={`Response status for ${lead.name}`} value={lead.responseStatus || "no_response"} onChange={(event) => updateLead(lead.id, { responseStatus: event.target.value as SavedLead["responseStatus"] })}><option value="no_response">No response</option><option value="replied">Replied</option><option value="interested">Interested</option><option value="opted_out">Opted out</option></select></div>
-          <select value={lead.stage} onChange={(event) => updateLead(lead.id, { stage: event.target.value as LeadStage })}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
+          <select value={lead.stage} onChange={(event) => updateLeadStage(lead.id, event.target.value as LeadStage)}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
           <div className={outreachStyles.pipelineFields}>
             <label><span>Contact notes</span><input value={lead.notes} onChange={(event) => updateLead(lead.id, { notes: event.target.value })} placeholder="Next step or contact notes" /></label>
             <label><span>Events conducted</span><input type="number" min={0} step={1} value={lead.eventsConducted ?? 0} onChange={(event) => updateLead(lead.id, { eventsConducted: Math.max(0, Number(event.target.value) || 0) })} /></label>
             <label><span>Students enrolled</span><input type="number" min={0} step={1} value={lead.studentsEnrolled ?? 0} onChange={(event) => updateLead(lead.id, { studentsEnrolled: Math.max(0, Number(event.target.value) || 0) })} /></label>
           </div>
-          <div className={styles.rowActions}>{lead.phone && <a href={`tel:${lead.phone}`}>Call</a>}{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => removeLead(lead.id)}>Remove</button></div>
+          <div className={styles.rowActions}>{lead.phone && <a href={`tel:${lead.phone}`}>Call</a>}{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => openActivityForLead(lead.id)}>Log activity</button><button onClick={() => removeLead(lead.id)}>Remove</button></div>
         </article>)}</div> : <div className={styles.empty}><span>◎</span><h2>No saved leads yet.</h2><p>Use Discover to build your first local partner list.</p><button onClick={() => setTab("discover")}>Discover opportunities</button></div>}
       </section>}
 
@@ -300,6 +312,8 @@ export default function MarketingPage() {
           <CopyCard title="Call opener" text={outreach.call} />
         </div>
       </section>}
+
+      {tab === "events" && <MarketingEvents leads={saved} initialLeadId={activityLeadId} onInitialLeadHandled={() => setActivityLeadId("")} onLeadStageChange={updateLeadStage} />}
     </section>
   </main>;
 }
