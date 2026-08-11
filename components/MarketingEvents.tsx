@@ -6,14 +6,14 @@ import { marketingCities, marketingGeography, type MarketingCity, type Marketing
 import {
   activityDirections, activityOutcomeLabels, activityOutcomes, activityTypeLabels, activityTypes,
   buildMarketingSeeds, createId, eventStatusLabels, eventStatuses, eventTypeLabels, eventTypes,
-  marketingEventsStorageKey, outcomeToLeadStage, outreachActivitiesStorageKey,
+  outcomeToLeadStage,
   type MarketingEvent, type MarketingEventStatus, type OutreachActivity, type OutreachActivityType, type OutreachOutcome,
 } from "@/lib/marketing-events";
 import styles from "./MarketingEvents.module.css";
 import cardStyles from "./MarketingEventCard.module.css";
 
 type PipelineLead = MarketingLead & { stage: "New" | "Contacted" | "Interested" | "Meeting" };
-type Props = { leads: PipelineLead[]; initialLeadId?: string; onLeadStageChange: (leadId: string, stage: PipelineLead["stage"]) => void; onInitialLeadHandled?: () => void };
+type Props = { leads: PipelineLead[]; events: MarketingEvent[]; activities: OutreachActivity[]; onEventsChange: (events: MarketingEvent[]) => void; onActivitiesChange: (activities: OutreachActivity[]) => void; initialLeadId?: string; onLeadStageChange: (leadId: string, stage: PipelineLead["stage"]) => void; onInitialLeadHandled?: () => void };
 type EventView = "list" | "calendar";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -24,8 +24,7 @@ const eventDefaults = (city: MarketingCity): Omit<MarketingEvent, "eventId" | "c
   return { title: "", eventType: "TASTING_DAY", city, zone, area: areas[0], linkedLeadIds: [], scheduledDate: today(), scheduledTimeStart: "10:00", scheduledTimeEnd: "12:00", venue: "", ownerName: "", status: "PLANNED", expectedAttendance: undefined, actualAttendance: undefined, leadsGeneratedCount: undefined, notes: "" };
 };
 
-export default function MarketingEvents({ leads, initialLeadId, onLeadStageChange, onInitialLeadHandled }: Props) {
-  const [events, setEvents] = useState<MarketingEvent[]>([]); const [activities, setActivities] = useState<OutreachActivity[]>([]);
+export default function MarketingEvents({ leads, events, activities, onEventsChange, onActivitiesChange, initialLeadId, onLeadStageChange, onInitialLeadHandled }: Props) {
   const [eventView, setEventView] = useState<EventView>("list"); const [eventCity, setEventCity] = useState<"ALL" | MarketingCity>("ALL"); const [eventStatus, setEventStatus] = useState<"ALL" | MarketingEventStatus>("ALL");
   const [activityLead, setActivityLead] = useState("ALL"); const [activityType, setActivityType] = useState<"ALL" | OutreachActivityType>("ALL"); const [activityOutcome, setActivityOutcome] = useState<"ALL" | OutreachOutcome>("ALL");
   const [eventSearch, setEventSearch] = useState(""); const [eventFrom, setEventFrom] = useState(""); const [eventTo, setEventTo] = useState("");
@@ -37,10 +36,9 @@ export default function MarketingEvents({ leads, initialLeadId, onLeadStageChang
   const [activityDraft, setActivityDraft] = useState({ leadId: "", linkedEventId: "", activityType: "CALL" as OutreachActivityType, direction: "OUTBOUND" as "OUTBOUND" | "INBOUND", outcome: "FOLLOW_UP_NEEDED" as OutreachOutcome, notes: "", performedBy: "", performedAt: new Date().toISOString().slice(0, 16), nextFollowUpDate: "" });
   const [completionId, setCompletionId] = useState(""); const [completion, setCompletion] = useState({ actualAttendance: "", leadsGeneratedCount: "" });
 
-  useEffect(() => { try { setEvents(JSON.parse(localStorage.getItem(marketingEventsStorageKey) || "[]")); setActivities(JSON.parse(localStorage.getItem(outreachActivitiesStorageKey) || "[]")); } catch { /* Ignore malformed local data. */ } }, []);
   useEffect(() => { if (!initialLeadId) return; setActivityDraft((value) => ({ ...value, leadId: initialLeadId })); setShowActivityForm(true); onInitialLeadHandled?.(); }, [initialLeadId, onInitialLeadHandled]);
-  const saveEvents = (next: MarketingEvent[]) => { setEvents(next); localStorage.setItem(marketingEventsStorageKey, JSON.stringify(next)); };
-  const saveActivities = (next: OutreachActivity[]) => { setActivities(next); localStorage.setItem(outreachActivitiesStorageKey, JSON.stringify(next)); };
+  const saveEvents = onEventsChange;
+  const saveActivities = onActivitiesChange;
 
   const leadById = useMemo(() => new Map(leads.map((lead) => [lead.id, lead])), [leads]);
   const filteredEvents = useMemo(() => events.filter((event) => (eventCity === "ALL" || event.city === eventCity) && (eventStatus === "ALL" || event.status === eventStatus) && (!eventFrom || event.scheduledDate >= eventFrom) && (!eventTo || event.scheduledDate <= eventTo) && (!eventSearch || `${event.title} ${event.venue} ${event.area}`.toLowerCase().includes(eventSearch.toLowerCase()))).sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)), [events, eventCity, eventStatus, eventFrom, eventTo, eventSearch]);
