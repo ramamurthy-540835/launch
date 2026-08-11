@@ -14,6 +14,11 @@ const collections = {
 } as const;
 type Entity = keyof typeof collections;
 
+async function workspaceActor(request: Request) {
+  if (process.env.MARKETING_OS_PUBLIC === "true") return { uid: "development-public", email: "public-development-mode" };
+  return verifyMarketingAdmin(request);
+}
+
 function entity(value: unknown): Entity | null { return typeof value === "string" && value in collections ? value as Entity : null; }
 function recordId(kind: Entity, record: Record<string, unknown>) { const key = kind === "lead" ? record.id : kind === "event" ? record.eventId : record.activityId; return typeof key === "string" ? key.trim() : ""; }
 function documentId(value: string) { return createHash("sha256").update(value).digest("hex"); }
@@ -31,7 +36,7 @@ function fail(error: unknown) {
 
 export async function GET(request: Request) {
   try {
-    const admin = await verifyMarketingAdmin(request); await enforceRateLimit("marketing_workspace_read", admin.uid, 120, 60);
+    const admin = await workspaceActor(request); await enforceRateLimit("marketing_workspace_read", admin.uid, 120, 60);
     const firestore = firestoreClient();
     const [leads, events, activities] = await Promise.all(Object.values(collections).map((name) => firestore.collection(name).get()));
     return NextResponse.json({
@@ -44,7 +49,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const admin = await verifyMarketingAdmin(request); await enforceRateLimit("marketing_workspace_write", admin.uid, 300, 60);
+    const admin = await workspaceActor(request); await enforceRateLimit("marketing_workspace_write", admin.uid, 300, 60);
     const body = await request.json() as { entity?: unknown; record?: unknown };
     const kind = entity(body.entity); const record = body.record && typeof body.record === "object" && !Array.isArray(body.record) ? body.record as Record<string, unknown> : null;
     if (!kind || !record || !validRecord(kind, record)) return NextResponse.json({ error: "Enter a valid marketing record." }, { status: 400 });
@@ -57,7 +62,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const admin = await verifyMarketingAdmin(request); await enforceRateLimit("marketing_workspace_write", admin.uid, 300, 60);
+    const admin = await workspaceActor(request); await enforceRateLimit("marketing_workspace_write", admin.uid, 300, 60);
     const url = new URL(request.url); const kind = entity(url.searchParams.get("entity")); const id = url.searchParams.get("id")?.trim() || "";
     if (!kind || !id || id.length > 300) return NextResponse.json({ error: "Choose a valid marketing record." }, { status: 400 });
     await firestoreClient().collection(collections[kind]).doc(documentId(id)).delete();

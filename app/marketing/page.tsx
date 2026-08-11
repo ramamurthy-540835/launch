@@ -4,9 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MarketingMap from "@/components/MarketingMap";
 import MarketingEvents from "@/components/MarketingEvents";
-import MarketingSignIn from "@/components/MarketingSignIn";
-import { firebaseAuth } from "@/lib/firebase-client";
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   audienceTypes,
   marketingCities,
@@ -51,8 +48,6 @@ export default function MarketingPage() {
   const [saved, setSaved] = useState<SavedLead[]>([]);
   const [events, setEvents] = useState<MarketingEvent[]>([]);
   const [activities, setActivities] = useState<OutreachActivity[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,27 +68,22 @@ export default function MarketingPage() {
   const [campaignImage, setCampaignImage] = useState("auto");
   const [customImageUrl, setCustomImageUrl] = useState("");
 
-  useEffect(() => { const auth = firebaseAuth(); if (!auth) { setAuthReady(true); return; } return onAuthStateChanged(auth, (nextUser) => { setUser(nextUser); setAuthReady(true); }); }, []);
-  useEffect(() => { if (!user) return; void loadWorkspace(user); },
-    // Loading is intentionally keyed to the authenticated user session.
+  useEffect(() => { void loadWorkspace(); },
+    // The shared development workspace loads once when Marketing OS opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user]);
+    []);
 
   async function authorizedFetch(path: string, init?: RequestInit) {
-    const activeUser = firebaseAuth()?.currentUser;
-    if (!activeUser) throw new Error("Sign in to use the shared Marketing OS workspace.");
-    const token = await activeUser.getIdToken();
-    const response = await fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...init?.headers } });
+    const response = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || "Shared workspace request failed.");
     return body;
   }
 
-  async function loadWorkspace(activeUser: User) {
+  async function loadWorkspace() {
     setWorkspaceLoading(true); setWorkspaceError("");
     try {
-      const token = await activeUser.getIdToken();
-      const response = await fetch("/api/marketing/workspace", { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch("/api/marketing/workspace");
       const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not load the shared workspace.");
       const remoteLeads = (body.leads || []) as SavedLead[]; const remoteEvents = (body.events || []) as MarketingEvent[]; const remoteActivities = (body.activities || []) as OutreachActivity[];
       const localLeads = readLocal<SavedLead>(storageKey); const localEvents = readLocal<MarketingEvent>(marketingEventsStorageKey); const localActivities = readLocal<OutreachActivity>(outreachActivitiesStorageKey);
@@ -225,8 +215,6 @@ export default function MarketingPage() {
   const outreach = buildOutreach(campaignName, city, audience);
   const outreachRecipients = saved;
 
-  if (!authReady) return <main className={styles.shell}><section className={styles.content}>Checking Marketing OS access…</section></main>;
-  if (!user) return <MarketingSignIn error={workspaceError} onError={setWorkspaceError} />;
   if (workspaceLoading) return <main className={styles.shell}><section className={styles.content}>Loading shared Firestore workspace…</section></main>;
 
   return <main className={styles.shell}>
@@ -239,13 +227,13 @@ export default function MarketingPage() {
         <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i>↗</i>Outreach kit</button>
         <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i>◫</i>Events</button>
       </nav>
-      <div className={styles.sideNote}><strong>Shared securely</strong><p>The Places key stays server-side. Leads, events and outreach are stored in Firestore for authorized devices.</p></div>
+      <div className={styles.sideNote}><strong>Development mode</strong><p>Shared Firestore data is currently public. Re-enable staff authentication before production use.</p></div>
     </aside>
 
     <section className={styles.content}>
       <header className={styles.topbar}>
         <div><span>CAMPAIGN WORKSPACE</span><h1>{campaignName}</h1></div>
-        <div><Link href="/">View LunchBox site ↗</Link><button onClick={() => void signOut(firebaseAuth()!)}>Sign out</button></div>
+        <Link href="/">View LunchBox site ↗</Link>
       </header>
 
       {workspaceError && <div className={styles.error}><b>Shared workspace</b><span>{workspaceError}</span></div>}
