@@ -15,6 +15,43 @@
         { "fieldPath": "route_id", "order": "ASCENDING" },
         { "fieldPath": "service_date", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "inventory_balances",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "location_id", "order": "ASCENDING" },
+        { "fieldPath": "item_id", "order": "ASCENDING" },
+        { "fieldPath": "expiry_date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stock_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "item_id", "order": "ASCENDING" },
+        { "fieldPath": "location_id", "order": "ASCENDING" },
+        { "fieldPath": "performed_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supplier_item_rates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "supplier_id", "order": "ASCENDING" },
+        { "fieldPath": "item_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "effective_from", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "forecast_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "location_id", "order": "ASCENDING" },
+        { "fieldPath": "alert_color", "order": "ASCENDING" },
+        { "fieldPath": "forecasted_depletion_date", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
