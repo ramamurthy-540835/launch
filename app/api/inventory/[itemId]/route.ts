@@ -1,0 +1,11 @@
+import { FieldValue } from "@google-cloud/firestore";
+import { NextResponse } from "next/server";
+import { verifyInventoryAccess } from "@/lib/firebase-admin";
+import { firestoreClient } from "@/lib/firestore";
+import { apiError, jsonBody } from "@/lib/inventory/api";
+import { itemSchema } from "@/lib/inventory/domain";
+import { writeAudit } from "@/lib/inventory/service";
+
+type Context = { params: Promise<{ itemId: string }> };
+export async function PUT(request: Request, context: Context) { try { const actor = await verifyInventoryAccess(request, ["admin", "procurement_manager"]); const { itemId } = await context.params; const parsed = itemSchema.omit({ itemId: true }).parse(await jsonBody(request)); const ref = firestoreClient().collection("inventory_items").doc(itemId); const before = await ref.get(); if (!before.exists) return NextResponse.json({ error: "Item not found." }, { status: 404 }); const after = { item_name: parsed.itemName, category_id: parsed.categoryId, unit: parsed.unit, base_unit: parsed.baseUnit, conversion_factor: parsed.conversionFactor, default_supplier_id: parsed.defaultSupplierId || null, batch_tracking_required: parsed.batchTrackingRequired, expiry_tracking_required: parsed.expiryTrackingRequired, shelf_life_days: parsed.shelfLifeDays || null, storage_condition: parsed.storageCondition, reorder_method: parsed.reorderMethod, status: parsed.status, updated_at: FieldValue.serverTimestamp() }; await ref.update(after); await writeAudit(actor.uid, "item.update", "inventory_item", itemId, before.data(), after); return NextResponse.json({ itemId }); } catch (error) { return apiError(error); } }
+export async function DELETE(request: Request, context: Context) { try { const actor = await verifyInventoryAccess(request, ["admin"]); const { itemId } = await context.params; const ref = firestoreClient().collection("inventory_items").doc(itemId); const before = await ref.get(); if (!before.exists) return NextResponse.json({ error: "Item not found." }, { status: 404 }); await ref.update({ status: "INACTIVE", updated_at: FieldValue.serverTimestamp() }); await writeAudit(actor.uid, "item.deactivate", "inventory_item", itemId, before.data(), { status: "INACTIVE" }); return NextResponse.json({ itemId, status: "INACTIVE" }); } catch (error) { return apiError(error); } }

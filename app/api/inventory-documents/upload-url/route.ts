@@ -1,0 +1,7 @@
+import { Storage } from "@google-cloud/storage";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { verifyInventoryAccess } from "@/lib/firebase-admin";
+import { apiError,jsonBody } from "@/lib/inventory/api";
+const schema=z.object({referenceType:z.enum(["PO","GRN","INBOUND_SHIPMENT","OUTBOUND_DISPATCH","TRANSFER","DAILY_EXPENSE","RATE_SHEET"]),referenceId:z.string().regex(/^[A-Za-z0-9_-]{2,120}$/),fileName:z.string().min(1).max(180),contentType:z.enum(["application/pdf","image/jpeg","image/png","image/webp","text/csv","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"])});
+export async function POST(request:Request){try{await verifyInventoryAccess(request,["admin","warehouse_manager","branch_store_manager","logistics_manager","procurement_manager","finance_analyst"]);const p=schema.parse(await jsonBody(request));const bucket=process.env.INVENTORY_DOCUMENTS_BUCKET||process.env.GCS_BUCKET;if(!bucket)throw new Error("Inventory document bucket is not configured.");const safeName=p.fileName.replace(/[^A-Za-z0-9._-]/g,"_");const objectName=`inventory-documents/${p.referenceType.toLowerCase()}/${p.referenceId}/${crypto.randomUUID()}-${safeName}`;const [uploadUrl]=await new Storage({projectId:process.env.GCP_PROJECT_ID}).bucket(bucket).file(objectName).getSignedUrl({version:"v4",action:"write",expires:Date.now()+15*60_000,contentType:p.contentType});return NextResponse.json({uploadUrl,objectUri:`gs://${bucket}/${objectName}`,expiresInSeconds:900});}catch(e){return apiError(e)}}

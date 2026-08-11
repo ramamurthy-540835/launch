@@ -66,3 +66,15 @@ export async function verifyStaffRole(request: Request, role: "admin" | "kitchen
     routeIds: stringArray(decoded.route_ids),
   };
 }
+
+export type InventoryRole = "admin" | "warehouse_manager" | "branch_store_manager" | "kitchen_manager" | "logistics_manager" | "procurement_manager" | "finance_analyst" | "planning_manager";
+
+export async function verifyInventoryAccess(request: Request, allowedRoles: InventoryRole[], locationId?: string) {
+  const decoded = await decodeRequest(request);
+  const roles = stringArray(decoded.roles) as InventoryRole[];
+  const isAdmin = decoded.admin === true || roles.includes("admin");
+  if (!isAdmin && !allowedRoles.some((role) => roles.includes(role))) throw new ParentAuthError("This account does not have the required inventory role.");
+  const locationIds = stringArray(decoded.location_ids);
+  if (locationId && !isAdmin && !locationIds.includes(locationId)) throw new ParentAuthError("This account is not assigned to this inventory location.");
+  return { uid: decoded.uid, roles, isAdmin, locationIds };
+}

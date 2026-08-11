@@ -1,0 +1,22 @@
+{
+  "note": "Illustrative configuration only. Replace every location, route, quantity, formula and rate before use.",
+  "inventory_categories": [
+    { "category_id": "grains_pulses", "category_name": "Grains & Pulses", "active": true },
+    { "category_id": "oils_ghee", "category_name": "Oils & Ghee", "active": true },
+    { "category_id": "condiments", "category_name": "Masalas & Condiments", "active": true },
+    { "category_id": "dry_ingredients", "category_name": "Dry Ingredients", "active": true },
+    { "category_id": "fruits", "category_name": "Fruits", "active": true },
+    { "category_id": "fuel_utilities", "category_name": "Fuel & Utilities", "active": true }
+  ],
+  "inventory_locations": [
+    { "location_id": "warehouse_example_01", "location_name": "Example Central Warehouse", "location_type": "CENTRAL_WAREHOUSE", "city": "Example City A", "state": "Example State", "address": "Replace before deployment", "capacity": 500000, "capacity_unit": "KG", "default_planning_period_days": 30, "status": "ACTIVE" },
+    { "location_id": "branch_example_01", "location_name": "Example Branch Kitchen", "location_type": "BRANCH_KITCHEN", "city": "Example City B", "state": "Example State", "address": "Replace before deployment", "capacity": 50000, "capacity_unit": "KG", "default_planning_period_days": 7, "primary_warehouse_id": "warehouse_example_01", "status": "ACTIVE" },
+    { "location_id": "origin_example_01", "location_name": "Example Supplier Origin", "location_type": "SUPPLIER_ORIGIN", "city": "Example City C", "state": "Example State", "address": "Replace before deployment", "capacity": 0, "capacity_unit": "KG", "default_planning_period_days": 1, "status": "ACTIVE" }
+  ],
+  "demand_plans": [{ "plan_id": "illustrative_branch_month", "location_id": "branch_example_01", "planning_period": { "start_date": "2026-09-01", "end_date": "2026-09-30" }, "period_consumer_count": 40000, "sub_period_consumer_count": 10000, "service_days": 22, "sub_period_service_days": 5, "servings_per_consumer_per_day": 1, "menu_type": "STANDARD", "status": "DRAFT" }],
+  "alert_rule_config": [{ "rule_id": "LOW_STOCK_GLOBAL", "alert_type": "LOW_STOCK", "scope_location_id": null, "scope_item_category": null, "green_threshold": 50, "red_threshold": 25, "near_expiry_days": 14, "escalation_delay_minutes": 30, "notify_roles": ["admin", "warehouse_manager", "branch_store_manager", "planning_manager", "procurement_manager"], "active": true }],
+  "transportation_rate_master": [
+    { "rate_id": "illustrative_inbound", "mode": "RAIL", "origin_location_id": "origin_example_01", "destination_location_id": "warehouse_example_01", "route_distance_km": 500, "rate_type": "MANUAL_REFERENCE", "base_rate": 0, "minimum_charge": 0, "effective_from": "2026-09-01", "status": "DRAFT" },
+    { "rate_id": "illustrative_outbound", "mode": "ROAD", "origin_location_id": "warehouse_example_01", "destination_location_id": "branch_example_01", "route_distance_km": 250, "rate_type": "PER_TRIP", "base_rate": 15000, "minimum_charge": 15000, "effective_from": "2026-09-01", "status": "DRAFT" }
+  ]
+}
