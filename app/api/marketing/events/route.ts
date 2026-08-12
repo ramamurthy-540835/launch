@@ -1,45 +1,51 @@
-import { NextRequest, NextResponse } from "next/server";
-import { deleteMarketingEvent, listMarketingEvents, saveMarketingEvent } from "@/lib/marketing-events-gcp";
-import { eventCategories, eventStatuses, type MarketingEvent } from "@/lib/marketing-events";
+import { NextResponse } from "next/server";
+import {
+  deleteMarketingEvent,
+  listMarketingEvents,
+  saveMarketingEvent,
+  validateMarketingEventPayload,
+  verifyMarketingInstitutions,
+} from "@/lib/marketing-events-gcp";
 
 export const runtime = "nodejs";
 
-function validEvent(value: unknown): value is MarketingEvent {
-  if (!value || typeof value !== "object") return false;
-  const event = value as Partial<MarketingEvent>;
-  return typeof event.eventId === "string" && typeof event.title === "string" && event.title.trim().length > 0
-    && typeof event.eventCategory === "string" && eventCategories.includes(event.eventCategory as MarketingEvent["eventCategory"])
-    && typeof event.scheduledDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.scheduledDate)
-    && typeof event.scheduledTimeStart === "string" && typeof event.scheduledTimeEnd === "string"
-    && typeof event.city === "string" && typeof event.venue === "string" && typeof event.ownerName === "string"
-    && typeof event.status === "string" && eventStatuses.includes(event.status as MarketingEvent["status"])
-    && Array.isArray(event.linkedLeadIds) && typeof event.createdAt === "string" && typeof event.updatedAt === "string";
-}
-
 export async function GET() {
   try {
-    return NextResponse.json(await listMarketingEvents());
+    const result = await listMarketingEvents();
+    return NextResponse.json(result);
   } catch {
-    return NextResponse.json({ error: "Marketing events could not be loaded from BigQuery." }, { status: 502 });
+    return NextResponse.json({ error: "Marketing events could not be read from BigQuery." }, { status: 502 });
   }
 }
 
-export async function POST(request: NextRequest) {
-  const event = await request.json().catch(() => null);
-  if (!validEvent(event)) return NextResponse.json({ error: "A valid event is required." }, { status: 400 });
+export async function PUT(request: Request) {
+  const payload = await request.json().catch(() => null);
+  const validated = validateMarketingEventPayload(payload);
+  if (!validated.ok) return NextResponse.json({ error: "Enter a valid marketing event.", details: validated.errors }, { status: 400 });
+
   try {
-    return NextResponse.json({ mode: await saveMarketingEvent(event), event });
+    const verification = await verifyMarketingInstitutions(validated.event.institutions);
+    if (verification.missing.length > 0) {
+      return NextResponse.json({
+        error: "One or more mapped institutions were not found in saved schools or colleges.",
+        details: verification.missing,
+      }, { status: 400 });
+    }
+    const result = await saveMarketingEvent(validated.event);
+    return NextResponse.json({ ...result, eventId: validated.event.eventId });
   } catch {
     return NextResponse.json({ error: "Marketing event could not be saved to BigQuery." }, { status: 502 });
   }
 }
 
-export async function DELETE(request: NextRequest) {
-  const eventId = request.nextUrl.searchParams.get("eventId");
-  if (!eventId) return NextResponse.json({ error: "eventId is required." }, { status: 400 });
+export async function DELETE(request: Request) {
+  const eventId = new URL(request.url).searchParams.get("eventId")?.trim() || "";
+  if (!eventId || eventId.length > 300) return NextResponse.json({ error: "Choose a valid marketing event." }, { status: 400 });
   try {
-    return NextResponse.json({ mode: await deleteMarketingEvent(eventId) });
+    const result = await deleteMarketingEvent(eventId);
+    return NextResponse.json({ ...result, eventId });
   } catch {
     return NextResponse.json({ error: "Marketing event could not be deleted from BigQuery." }, { status: 502 });
   }
 }
+

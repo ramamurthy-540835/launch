@@ -12,7 +12,7 @@ import {
   type MarketingCity,
   type MarketingLead,
 } from "@/lib/marketing";
-import { marketingEventsStorageKey, outreachActivitiesStorageKey, type MarketingEvent, type OutreachActivity } from "@/lib/marketing-events";
+import { marketingEventsStorageKey, normalizeMarketingEventRecord, outreachActivitiesStorageKey, type MarketingEvent, type OutreachActivity } from "@/lib/marketing-events";
 import styles from "./marketing.module.css";
 import nearbyStyles from "./nearby.module.css";
 import outreachStyles from "./outreach.module.css";
@@ -87,7 +87,7 @@ export default function MarketingPage() {
       const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not load the shared workspace.");
       const remoteLeads = (body.leads || []) as SavedLead[]; const remoteEvents = (body.events || []) as MarketingEvent[]; const remoteActivities = (body.activities || []) as OutreachActivity[];
       const localLeads = readLocal<SavedLead>(storageKey); const localEvents = readLocal<MarketingEvent>(marketingEventsStorageKey); const localActivities = readLocal<OutreachActivity>(outreachActivitiesStorageKey);
-      const mergedLeads = mergeRecords(remoteLeads, localLeads, (item) => item.id); const mergedEvents = mergeRecords(remoteEvents, localEvents, (item) => item.eventId); const mergedActivities = mergeRecords(remoteActivities, localActivities, (item) => item.activityId);
+      const mergedLeads = mergeRecords(remoteLeads, localLeads, (item) => item.id); const mergedEvents = mergeRecords(remoteEvents, localEvents, (item) => item.eventId).map((event) => normalizeMarketingEventRecord(event, mergedLeads)); const mergedActivities = mergeRecords(remoteActivities, localActivities, (item) => item.activityId);
       setSaved(mergedLeads); setEvents(mergedEvents); setActivities(mergedActivities);
       const imports = [...localLeads.map((record) => ["lead", record] as const), ...localEvents.map((record) => ["event", record] as const), ...localActivities.map((record) => ["activity", record] as const)];
       if (imports.length) { await Promise.all(imports.map(([entity, record]) => authorizedFetch("/api/marketing/workspace", { method: "PUT", body: JSON.stringify({ entity, record }) }))); localStorage.removeItem(storageKey); localStorage.removeItem(marketingEventsStorageKey); localStorage.removeItem(outreachActivitiesStorageKey); }
@@ -215,17 +215,17 @@ export default function MarketingPage() {
   const outreach = buildOutreach(campaignName, city, audience);
   const outreachRecipients = saved;
 
-  if (workspaceLoading) return <main className={styles.shell}><section className={styles.content}>Loading shared Firestore workspace…</section></main>;
+  if (workspaceLoading) return <main className={styles.shell}><section className={styles.content}>Loading shared Firestore workspaceâ€¦</section></main>;
 
   return <main className={styles.shell}>
     <aside className={styles.sidebar}>
       <Link className={styles.brand} href="/"><span>L</span>LunchBox</Link>
       <p className={styles.workspace}>MARKETING OS</p>
       <nav>
-        <button className={tab === "discover" ? styles.active : ""} onClick={() => setTab("discover")}><i>⌕</i>Discover</button>
-        <button className={tab === "pipeline" ? styles.active : ""} onClick={() => setTab("pipeline")}><i>◎</i>Lead pipeline <b>{saved.length}</b></button>
-        <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i>↗</i>Outreach kit</button>
-        <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i>◫</i>Events</button>
+        <button className={tab === "discover" ? styles.active : ""} onClick={() => setTab("discover")}><i>âŒ•</i>Discover</button>
+        <button className={tab === "pipeline" ? styles.active : ""} onClick={() => setTab("pipeline")}><i>â—Ž</i>Lead pipeline <b>{saved.length}</b></button>
+        <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i>â†—</i>Outreach kit</button>
+        <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i>â—«</i>Events</button>
       </nav>
       <div className={styles.sideNote}><strong>Development mode</strong><p>Shared Firestore data is currently public. Re-enable staff authentication before production use.</p></div>
     </aside>
@@ -233,7 +233,7 @@ export default function MarketingPage() {
     <section className={styles.content}>
       <header className={styles.topbar}>
         <div><span>CAMPAIGN WORKSPACE</span><h1>{campaignName}</h1></div>
-        <Link href="/">View LunchBox site ↗</Link>
+        <Link href="/">View LunchBox site â†—</Link>
       </header>
 
       {workspaceError && <div className={styles.error}><b>Shared workspace</b><span>{workspaceError}</span></div>}
@@ -256,43 +256,43 @@ export default function MarketingPage() {
             <label><span>Audience</span><select value={audience} onChange={(event) => { setAudience(event.target.value as AudienceType); setResultPage(1); }}>{Object.entries(audienceTypes).map(([id, item]) => <option value={id} key={id}>{item.label}</option>)}</select></label>
             <label><span>Results to find</span><select value={resultLimit} onChange={(event) => { setResultLimit(Number(event.target.value)); setResultPage(1); }}>{[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((count) => <option value={count} key={count}>{count}</option>)}</select></label>
             <label><span>Search by keyword</span><input value={keyword} onChange={(event) => { setKeyword(event.target.value); setResultPage(1); }} placeholder={`Example: CBSE ${audienceTypes[audience].searchTerm}`} maxLength={80} /></label>
-            <button onClick={discover} disabled={loading}>{loading ? "Searching…" : "Discover leads"}<b>→</b></button>
+            <button onClick={discover} disabled={loading}>{loading ? "Searchingâ€¦" : "Discover leads"}<b>â†’</b></button>
           </div>
           <div className={styles.intent}><b>{audienceTypes[audience].label}:</b> {audienceTypes[audience].intent}</div>
         </section>
 
         {error && <div className={styles.error}><b>Search unavailable</b><span>{error}</span></div>}
         {(results.length > 0 || query) && <section className={styles.results}>
-          <div className={styles.resultHead}><div><span>SEARCH RESULTS</span><h2>{results.length} opportunities found</h2><p>{query} · Showing 10 per page</p></div><button onClick={() => results.forEach(saveLead)}>Save all results</button></div>
+          <div className={styles.resultHead}><div><span>SEARCH RESULTS</span><h2>{results.length} opportunities found</h2><p>{query} Â· Showing 10 per page</p></div><button onClick={() => results.forEach(saveLead)}>Save all results</button></div>
           <div className={styles.leadGrid}>{pagedResults.map((lead) => {
             const isSaved = saved.some((item) => item.id === lead.id);
             return <article className={styles.leadCard} key={lead.id}>
               <div className={styles.leadTop}><span>{lead.position}</span><div><small>{lead.type}</small><h3>{lead.name}</h3></div></div>
               <p className={styles.address}>{lead.address}</p>
-              <div className={styles.proof}>{lead.rating && <span>★ {lead.rating} {lead.reviews ? `(${lead.reviews})` : ""}</span>}{lead.phone && <span>{lead.phone}</span>}</div>
-              <div className={styles.cardActions}>{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website ↗</a>}<button disabled={isSaved} onClick={() => saveLead(lead)}>{isSaved ? "Saved ✓" : "+ Save lead"}</button></div>
+              <div className={styles.proof}>{lead.rating && <span>â˜… {lead.rating} {lead.reviews ? `(${lead.reviews})` : ""}</span>}{lead.phone && <span>{lead.phone}</span>}</div>
+              <div className={styles.cardActions}>{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website â†—</a>}<button disabled={isSaved} onClick={() => saveLead(lead)}>{isSaved ? "Saved âœ“" : "+ Save lead"}</button></div>
               {lead.audience === "schools" && lead.latitude != null && lead.longitude != null && <button className={nearbyStyles.schoolSelect} onClick={() => void findNearby(lead)}>Use this school</button>}
             </article>;
           })}</div>
           {resultPageCount > 1 && <nav className={paginationStyles.pagination} aria-label="Search result pages">
-            <button onClick={() => setResultPage((page) => Math.max(1, page - 1))} disabled={resultPage === 1} aria-label="Previous page">‹</button>
+            <button onClick={() => setResultPage((page) => Math.max(1, page - 1))} disabled={resultPage === 1} aria-label="Previous page">â€¹</button>
             {Array.from({ length: resultPageCount }, (_, index) => index + 1).map((page) => <button key={page} className={page === resultPage ? paginationStyles.currentPage : ""} onClick={() => setResultPage(page)} aria-current={page === resultPage ? "page" : undefined}>{page}</button>)}
-            <button onClick={() => setResultPage((page) => Math.min(resultPageCount, page + 1))} disabled={resultPage === resultPageCount} aria-label="Next page">›</button>
+            <button onClick={() => setResultPage((page) => Math.min(resultPageCount, page + 1))} disabled={resultPage === resultPageCount} aria-label="Next page">â€º</button>
           </nav>}
         </section>}
         {selectedSchool && <section className={nearbyStyles.nearbyPanel}>
-          <div className={nearbyStyles.nearbyHead}><div><span>SCHOOL-CENTRED DISCOVERY</span><h2>{selectedSchool.name}</h2><p>{selectedSchool.address}</p></div><div><label>Search radius<select value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))}><option value={2}>2 km</option><option value={5}>5 km</option><option value={8}>8 km</option><option value={10}>10 km</option></select></label><button disabled={nearbyLoading} onClick={() => void findNearby()}>{nearbyLoading ? "Searching…" : "Find communities"}</button></div></div>
+          <div className={nearbyStyles.nearbyHead}><div><span>SCHOOL-CENTRED DISCOVERY</span><h2>{selectedSchool.name}</h2><p>{selectedSchool.address}</p></div><div><label>Search radius<select value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))}><option value={2}>2 km</option><option value={5}>5 km</option><option value={8}>8 km</option><option value={10}>10 km</option></select></label><button disabled={nearbyLoading} onClick={() => void findNearby()}>{nearbyLoading ? "Searchingâ€¦" : "Find communities"}</button></div></div>
           <MarketingMap school={selectedSchool} communities={communities} />
-          <div className={nearbyStyles.communityList}>{communities.map((lead, index) => <article key={lead.id}><b>{index + 1}</b><div><h3>{lead.name}</h3><p>{lead.address}</p><small>{lead.distanceKm} km from school {lead.rating ? ` · ★ ${lead.rating}` : ""}</small></div><button disabled={saved.some((item) => item.id === lead.id)} onClick={() => saveLead(lead)}>{saved.some((item) => item.id === lead.id) ? "Saved" : "Save"}</button></article>)}</div>
+          <div className={nearbyStyles.communityList}>{communities.map((lead, index) => <article key={lead.id}><b>{index + 1}</b><div><h3>{lead.name}</h3><p>{lead.address}</p><small>{lead.distanceKm} km from school {lead.rating ? ` Â· â˜… ${lead.rating}` : ""}</small></div><button disabled={saved.some((item) => item.id === lead.id)} onClick={() => saveLead(lead)}>{saved.some((item) => item.id === lead.id) ? "Saved" : "Save"}</button></article>)}</div>
           {!nearbyLoading && !communities.length && <p className={nearbyStyles.nearbyEmpty}>Choose a radius and search for nearby apartment communities.</p>}
         </section>}
-        {!results.length && !query && !error && <section className={styles.empty}><span>⌕</span><h2>Start with a city and audience.</h2><p>Find schools, apartment communities, and parent hubs, then save the best opportunities to your pipeline.</p></section>}
+        {!results.length && !query && !error && <section className={styles.empty}><span>âŒ•</span><h2>Start with a city and audience.</h2><p>Find schools, apartment communities, and parent hubs, then save the best opportunities to your pipeline.</p></section>}
       </>}
 
       {tab === "pipeline" && <section className={styles.panel}>
         <div className={styles.panelHead}><div><span>PARTNER PIPELINE</span><h2>Turn discovery into conversations.</h2></div><p>Update each stage after calls, WhatsApp outreach, tastings, or meetings.</p></div>
         {saved.length ? <div className={styles.pipeline}>{saved.map((lead) => <article key={lead.id}>
-          <div><small>{lead.city} · {audienceTypes[lead.audience].label}</small><h3>{lead.name}</h3><p>{lead.address}</p><p>{lead.eventsConducted || 0} events · {lead.studentsEnrolled || 0} students enrolled</p><select aria-label={`Response status for ${lead.name}`} value={lead.responseStatus || "no_response"} onChange={(event) => updateLead(lead.id, { responseStatus: event.target.value as SavedLead["responseStatus"] })}><option value="no_response">No response</option><option value="replied">Replied</option><option value="interested">Interested</option><option value="opted_out">Opted out</option></select></div>
+          <div><small>{lead.city} Â· {audienceTypes[lead.audience].label}</small><h3>{lead.name}</h3><p>{lead.address}</p><p>{lead.eventsConducted || 0} events Â· {lead.studentsEnrolled || 0} students enrolled</p><select aria-label={`Response status for ${lead.name}`} value={lead.responseStatus || "no_response"} onChange={(event) => updateLead(lead.id, { responseStatus: event.target.value as SavedLead["responseStatus"] })}><option value="no_response">No response</option><option value="replied">Replied</option><option value="interested">Interested</option><option value="opted_out">Opted out</option></select></div>
           <select value={lead.stage} onChange={(event) => updateLeadStage(lead.id, event.target.value as LeadStage)}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
           <div className={outreachStyles.pipelineFields}>
             <label><span>Contact notes</span><input value={lead.notes} onChange={(event) => updateLead(lead.id, { notes: event.target.value })} placeholder="Next step or contact notes" /></label>
@@ -300,7 +300,7 @@ export default function MarketingPage() {
             <label><span>Students enrolled</span><input type="number" min={0} step={1} value={lead.studentsEnrolled ?? 0} onChange={(event) => updateLead(lead.id, { studentsEnrolled: Math.max(0, Number(event.target.value) || 0) })} /></label>
           </div>
           <div className={styles.rowActions}>{lead.phone && <a href={`tel:${lead.phone}`}>Call</a>}{lead.website && <a href={lead.website} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => openActivityForLead(lead.id)}>Log activity</button><button onClick={() => removeLead(lead.id)}>Remove</button></div>
-        </article>)}</div> : <div className={styles.empty}><span>◎</span><h2>No saved leads yet.</h2><p>Use Discover to build your first local partner list.</p><button onClick={() => setTab("discover")}>Discover opportunities</button></div>}
+        </article>)}</div> : <div className={styles.empty}><span>â—Ž</span><h2>No saved leads yet.</h2><p>Use Discover to build your first local partner list.</p><button onClick={() => setTab("discover")}>Discover opportunities</button></div>}
       </section>}
 
       {tab === "outreach" && <section className={styles.panel}>
@@ -331,7 +331,7 @@ export default function MarketingPage() {
             <label><span>Campaign image</span><select value={campaignImage} onChange={(event) => setCampaignImage(event.target.value)}><option value="auto">Automatic by audience</option><option value="/campaigns/school-lunch.webp">School lunch</option><option value="/campaigns/college-lunch.webp">College lunch</option><option value="/campaigns/community-lunch.webp">Community lunch</option><option value="custom">Custom image URL</option></select></label>
             {campaignImage === "custom" && <label className={outreachStyles.customImage}><span>Public HTTPS image URL</span><input type="url" value={customImageUrl} onChange={(event) => setCustomImageUrl(event.target.value)} placeholder="https://example.com/campaign-image.jpg" /></label>}
           </div>
-          <div className={outreachStyles.automationBar}><button onClick={() => void previewCampaign()} disabled={campaignLoading}>{campaignLoading ? "Preparing…" : "Preview automated campaign"}</button>{campaignPreview && <p>{campaignPreview}</p>}</div>
+          <div className={outreachStyles.automationBar}><button onClick={() => void previewCampaign()} disabled={campaignLoading}>{campaignLoading ? "Preparingâ€¦" : "Preview automated campaign"}</button>{campaignPreview && <p>{campaignPreview}</p>}</div>
           {campaignMessages.length > 0 && <div className={outreachStyles.messagePreviews}>
             <h3>Dynamic messages ready for review</h3>
             {campaignMessages.map(({ recipient, message, sequence, scheduledFor }) => <article key={`${recipient.id}-${sequence}`}>
@@ -370,16 +370,16 @@ function CopyCard({ title, text, compact = false }: { title: string; text: strin
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   }
-  return <article className={`${styles.copyCard} ${compact ? styles.compact : ""}`}><div><h3>{title}</h3><button onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button></div><p>{text}</p></article>;
+  return <article className={`${styles.copyCard} ${compact ? styles.compact : ""}`}><div><h3>{title}</h3><button onClick={copy}>{copied ? "Copied âœ“" : "Copy"}</button></div><p>{text}</p></article>;
 }
 
 function buildOutreach(name: string, city: MarketingCity, audience: AudienceType) {
   const group = audienceTypes[audience].label.toLowerCase();
   return {
-    whatsapp: `Hello, I’m reaching out from LunchBox. We’re planning ${name}, a vegetarian school-lunch pilot for families in ${city}. We would like to explore a short introduction or tasting with your ${group}. Who would be the right person to speak with?`,
+    whatsapp: `Hello, Iâ€™m reaching out from LunchBox. Weâ€™re planning ${name}, a vegetarian school-lunch pilot for families in ${city}. We would like to explore a short introduction or tasting with your ${group}. Who would be the right person to speak with?`,
     subject: `LunchBox pilot opportunity for families in ${city}`,
-    email: `Hello,\n\nLunchBox is preparing a vegetarian school-lunch pilot for students in grades 6–12 in ${city}. We are speaking with selected ${group} to understand parent interest and arrange a limited tasting.\n\nCould we schedule a brief call to discuss whether this may be relevant to your community?\n\nRegards,\nLunchBox team`,
-    call: `Hello, I’m calling from LunchBox about a small school-lunch pilot in ${city}. We are looking for a few ${group} to understand parent demand. May I speak with the person who coordinates community partnerships?`,
+    email: `Hello,\n\nLunchBox is preparing a vegetarian school-lunch pilot for students in grades 6â€“12 in ${city}. We are speaking with selected ${group} to understand parent interest and arrange a limited tasting.\n\nCould we schedule a brief call to discuss whether this may be relevant to your community?\n\nRegards,\nLunchBox team`,
+    call: `Hello, Iâ€™m calling from LunchBox about a small school-lunch pilot in ${city}. We are looking for a few ${group} to understand parent demand. May I speak with the person who coordinates community partnerships?`,
   };
 }
 
@@ -399,3 +399,4 @@ function mergeRecords<T>(remote: T[], local: T[], id: (item: T) => string) {
   local.forEach((item) => merged.set(id(item), item));
   return [...merged.values()];
 }
+

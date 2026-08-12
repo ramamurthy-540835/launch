@@ -69,40 +69,20 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_discovery_run
 PARTITION BY DATE(searched_at)
 CLUSTER BY school_place_id;
 
--- Event categories are a controlled list used as the primary event selection.
-CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.event_categories` (
-  event_category STRING NOT NULL,
-  display_order INT64 NOT NULL,
-  active BOOL NOT NULL,
-  updated_at TIMESTAMP NOT NULL
-)
-CLUSTER BY active, display_order;
-
-MERGE `YOUR_PROJECT_ID.school_lunch.event_categories` AS target
-USING (
-  SELECT * FROM UNNEST([
-    STRUCT("Leadership Skills" AS event_category, 1 AS display_order), STRUCT("Sports", 2), STRUCT("Women Empowerment", 3), STRUCT("Skill Development", 4), STRUCT("Spoken English", 5), STRUCT("Numerical Ability", 6), STRUCT("Communication Skills", 7), STRUCT("Science", 8), STRUCT("Mathematics", 9), STRUCT("Physics", 10), STRUCT("Biology", 11), STRUCT("Science Exhibition", 12), STRUCT("Maths Olympiad", 13), STRUCT("Group Events", 14), STRUCT("Cooking Competition", 15), STRUCT("Food Festival", 16), STRUCT("Cultural Events", 17), STRUCT("Dance", 18), STRUCT("Music", 19), STRUCT("Yoga", 20), STRUCT("Arts", 21), STRUCT("Crochet", 22), STRUCT("IT Classes", 23), STRUCT("Fitness", 24), STRUCT("Healthcare", 25), STRUCT("Food Workshop", 26), STRUCT("Talent Competition", 27), STRUCT("Motivation Speech", 28), STRUCT("Gratitude Program", 29), STRUCT("Educational Trip", 30), STRUCT("School Cleanliness Drive", 31), STRUCT("Tree Plantation", 32), STRUCT("Career Guidance", 33), STRUCT("Higher Education (IIT, NEET)", 34), STRUCT("Job Training", 35), STRUCT("College Awareness", 36), STRUCT("Cultural Fest", 37), STRUCT("UNO Day", 38), STRUCT("Subject-wise Competitions", 39), STRUCT("Scholarship Awareness", 40), STRUCT("Hackathon", 41), STRUCT("Job Skill Development", 42)
-  ])
-) AS source
-ON target.event_category = source.event_category
-WHEN MATCHED THEN UPDATE SET display_order = source.display_order, active = TRUE, updated_at = CURRENT_TIMESTAMP()
-WHEN NOT MATCHED THEN INSERT (event_category, display_order, active, updated_at)
-VALUES (source.event_category, source.display_order, TRUE, CURRENT_TIMESTAMP());
-
 CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_events` (
   event_id STRING NOT NULL,
-  event_category STRING NOT NULL,
-  event_title STRING NOT NULL,
-  scheduled_date DATE NOT NULL,
-  scheduled_time_start TIME NOT NULL,
-  scheduled_time_end TIME NOT NULL,
+  title STRING NOT NULL,
+  event_type STRING NOT NULL,
   city STRING NOT NULL,
   zone STRING,
   area STRING,
+  linked_lead_ids ARRAY<STRING>,
+  scheduled_date DATE NOT NULL,
+  scheduled_time_start STRING NOT NULL,
+  scheduled_time_end STRING NOT NULL,
   venue STRING NOT NULL,
   owner_name STRING NOT NULL,
   status STRING NOT NULL,
-  linked_lead_ids ARRAY<STRING>,
   expected_attendance INT64,
   actual_attendance INT64,
   leads_generated_count INT64,
@@ -111,7 +91,39 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_events` (
   updated_at TIMESTAMP NOT NULL
 )
 PARTITION BY scheduled_date
-CLUSTER BY event_category, city, status;
+CLUSTER BY city, status, event_type;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_event_institutions` (
+  event_id STRING NOT NULL,
+  institution_id STRING NOT NULL,
+  institution_type STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY event_id, institution_type, institution_id;
+
+MERGE `YOUR_PROJECT_ID.school_lunch.marketing_event_institutions` AS target
+USING (
+  SELECT DISTINCT
+    events.event_id,
+    locations.location_id AS institution_id,
+    locations.location_type AS institution_type,
+    CURRENT_TIMESTAMP() AS migrated_at
+  FROM `YOUR_PROJECT_ID.school_lunch.marketing_events` AS events,
+  UNNEST(IFNULL(events.linked_lead_ids, [])) AS linked_lead_id
+  JOIN `YOUR_PROJECT_ID.school_lunch.marketing_locations` AS locations
+    ON locations.location_id = linked_lead_id
+  WHERE locations.location_type IN ("schools", "colleges")
+) AS source
+ON target.event_id = source.event_id
+  AND target.institution_id = source.institution_id
+WHEN NOT MATCHED THEN
+  INSERT (event_id, institution_id, institution_type, created_at, updated_at)
+  VALUES (source.event_id, source.institution_id, source.institution_type, source.migrated_at, source.migrated_at);
+
+-- After verifying marketing_event_institutions in production, linked_lead_ids
+-- can be removed from marketing_events in a later migration.
 
 ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders`
 ADD COLUMN IF NOT EXISTS parent_uid STRING;
@@ -311,3 +323,4 @@ SELECT
   SUM(free_meals) >= 25 AS cap_reached
 FROM `YOUR_PROJECT_ID.school_lunch.free_meal_summary`
 GROUP BY kitchen_id, service_date;
+

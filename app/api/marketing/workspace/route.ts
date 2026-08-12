@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ParentAuthError, verifyMarketingAdmin } from "@/lib/firebase-admin";
 import { firestoreClient } from "@/lib/firestore";
 import { enforceRateLimit, RateLimitError, writeAuditLog } from "@/lib/hardening";
+import { isMarketingInstitutionType } from "@/lib/marketing-events";
 
 export const runtime = "nodejs";
 
@@ -22,11 +23,17 @@ async function workspaceActor(request: Request) {
 function entity(value: unknown): Entity | null { return typeof value === "string" && value in collections ? value as Entity : null; }
 function recordId(kind: Entity, record: Record<string, unknown>) { const key = kind === "lead" ? record.id : kind === "event" ? record.eventId : record.activityId; return typeof key === "string" ? key.trim() : ""; }
 function documentId(value: string) { return createHash("sha256").update(value).digest("hex"); }
+function validInstitutions(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => item && typeof item === "object" && !Array.isArray(item) &&
+    typeof (item as { institutionId?: unknown }).institutionId === "string" &&
+    isMarketingInstitutionType((item as { institutionType?: unknown }).institutionType));
+}
 function validRecord(kind: Entity, record: Record<string, unknown>) {
   const id = recordId(kind, record);
   if (!id || id.length > 300 || JSON.stringify(record).length > 40_000) return false;
   if (kind === "lead") return typeof record.name === "string" && typeof record.city === "string" && typeof record.stage === "string";
-  if (kind === "event") return typeof record.title === "string" && typeof record.scheduledDate === "string" && Array.isArray(record.linkedLeadIds);
+  if (kind === "event") return typeof record.title === "string" && typeof record.scheduledDate === "string" && validInstitutions(record.institutions);
   return typeof record.leadId === "string" && typeof record.activityType === "string" && typeof record.outcome === "string";
 }
 function fail(error: unknown) {
@@ -70,3 +77,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ id, deleted: true });
   } catch (error) { return fail(error); }
 }
+

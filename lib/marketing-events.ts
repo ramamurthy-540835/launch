@@ -1,34 +1,33 @@
-import type { MarketingCity } from "@/lib/marketing";
+import type { AudienceType, MarketingCity, MarketingLead } from "@/lib/marketing";
 
-export const eventCategories = [
-  "Leadership Skills", "Sports", "Women Empowerment", "Skill Development", "Spoken English",
-  "Numerical Ability", "Communication Skills", "Science", "Mathematics", "Physics", "Biology",
-  "Science Exhibition", "Maths Olympiad", "Group Events", "Cooking Competition", "Food Festival",
-  "Cultural Events", "Dance", "Music", "Yoga", "Arts", "Crochet", "IT Classes", "Fitness",
-  "Healthcare", "Food Workshop", "Talent Competition", "Motivation Speech", "Gratitude Program",
-  "Educational Trip", "School Cleanliness Drive", "Tree Plantation", "Career Guidance",
-  "Higher Education (IIT, NEET)", "Job Training", "College Awareness", "Cultural Fest", "UNO Day",
-  "Subject-wise Competitions", "Scholarship Awareness", "Hackathon", "Job Skill Development",
-] as const;
+export const eventTypes = ["TASTING_DAY", "PTA_STALL", "CAMPUS_SAMPLING", "COMMUNITY_TALK", "FRANCHISE_LAUNCH", "OTHER"] as const;
 export const eventStatuses = ["PLANNED", "CONFIRMED", "COMPLETED", "CANCELLED", "POSTPONED"] as const;
 export const activityTypes = ["CALL", "EMAIL", "WHATSAPP", "SMS", "IN_PERSON_VISIT", "OTHER"] as const;
 export const activityDirections = ["OUTBOUND", "INBOUND"] as const;
 export const activityOutcomes = ["NO_ANSWER", "FOLLOW_UP_NEEDED", "INTERESTED", "NOT_INTERESTED", "MEETING_SCHEDULED", "CONVERTED"] as const;
 
-export type EventCategory = (typeof eventCategories)[number];
+export type MarketingEventType = (typeof eventTypes)[number];
 export type MarketingEventStatus = (typeof eventStatuses)[number];
 export type OutreachActivityType = (typeof activityTypes)[number];
 export type OutreachDirection = (typeof activityDirections)[number];
 export type OutreachOutcome = (typeof activityOutcomes)[number];
+export const institutionTypes = ["schools", "colleges"] as const;
+export type MarketingInstitutionType = (typeof institutionTypes)[number];
+
+export type MarketingEventInstitution = {
+  institutionId: string;
+  institutionType: MarketingInstitutionType;
+  name?: string;
+};
 
 export type MarketingEvent = {
   eventId: string;
   title: string;
-  eventCategory: EventCategory;
+  eventType: MarketingEventType;
   city: MarketingCity;
   zone: string;
   area: string;
-  linkedLeadIds: string[];
+  institutions: MarketingEventInstitution[];
   scheduledDate: string;
   scheduledTimeStart: string;
   scheduledTimeEnd: string;
@@ -60,6 +59,10 @@ export type OutreachActivity = {
 export const marketingEventsStorageKey = "lunchbox-marketing-events-v1";
 export const outreachActivitiesStorageKey = "lunchbox-outreach-activities-v1";
 
+export const eventTypeLabels: Record<MarketingEventType, string> = {
+  TASTING_DAY: "Tasting day", PTA_STALL: "PTA stall", CAMPUS_SAMPLING: "Campus sampling",
+  COMMUNITY_TALK: "Community talk", FRANCHISE_LAUNCH: "Franchise launch", OTHER: "Other",
+};
 export const eventStatusLabels: Record<MarketingEventStatus, string> = {
   PLANNED: "Planned", CONFIRMED: "Confirmed", COMPLETED: "Completed", CANCELLED: "Cancelled", POSTPONED: "Postponed",
 };
@@ -75,13 +78,57 @@ export function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export function canonicalInstitutionId(value: Pick<MarketingLead, "id" | "placeId">) {
+  return (value.placeId || value.id).trim();
+}
+
+export function isMarketingInstitutionType(value: unknown): value is MarketingInstitutionType {
+  return typeof value === "string" && institutionTypes.includes(value as MarketingInstitutionType);
+}
+
+export function audienceToInstitutionType(audience: AudienceType): MarketingInstitutionType | null {
+  return isMarketingInstitutionType(audience) ? audience : null;
+}
+
+export function dedupeInstitutions(institutions: MarketingEventInstitution[]) {
+  const byKey = new Map<string, MarketingEventInstitution>();
+  institutions.forEach((institution) => {
+    const institutionId = institution.institutionId.trim();
+    if (!institutionId || !isMarketingInstitutionType(institution.institutionType)) return;
+    byKey.set(`${institution.institutionType}:${institutionId}`, { ...institution, institutionId });
+  });
+  return [...byKey.values()];
+}
+
+type LegacyEventRecord = Omit<MarketingEvent, "institutions"> & {
+  institutions?: MarketingEventInstitution[];
+  linkedLeadIds?: string[];
+};
+
+export function normalizeMarketingEventRecord(event: MarketingEvent | LegacyEventRecord, leads: MarketingLead[] = []): MarketingEvent {
+  if (Array.isArray(event.institutions)) return { ...event, institutions: dedupeInstitutions(event.institutions) };
+  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+  const linkedLeadIds = "linkedLeadIds" in event && Array.isArray(event.linkedLeadIds) ? event.linkedLeadIds : [];
+  const institutions = linkedLeadIds.flatMap((id: string) => {
+    const lead = leadById.get(id);
+    const institutionType = lead ? audienceToInstitutionType(lead.audience) : "schools";
+    if (!institutionType) return [];
+    return [{ institutionId: lead ? canonicalInstitutionId(lead) : id, institutionType, name: lead?.name }];
+  });
+  return { ...event, institutions: dedupeInstitutions(institutions) };
+}
+
 export function outcomeToLeadStage(outcome: OutreachOutcome): "Contacted" | "Interested" | "Meeting" {
   if (outcome === "INTERESTED") return "Interested";
   if (outcome === "MEETING_SCHEDULED" || outcome === "CONVERTED") return "Meeting";
   return "Contacted";
 }
 
-type SeedLead = { id: string; name: string; city: MarketingCity; zone?: string; area?: string };
+type SeedLead = { id: string; placeId?: string; name: string; city: MarketingCity; audience?: AudienceType; zone?: string; area?: string };
+
+function seedInstitution(lead: SeedLead): MarketingEventInstitution {
+  return { institutionId: lead.placeId || lead.id, institutionType: audienceToInstitutionType(lead.audience || "schools") || "schools", name: lead.name };
+}
 
 export function buildMarketingSeeds(leads: SeedLead[], now = new Date()) {
   const selected = leads.slice(0, 3);
@@ -90,9 +137,9 @@ export function buildMarketingSeeds(leads: SeedLead[], now = new Date()) {
   const base = selected[0] || { id: "sample-school", name: "Adyar Pilot School", city: "Chennai" as const, zone: "East / North-East Chennai", area: "Adyar" };
   const second = selected[1] || base; const third = selected[2] || second;
   const events: MarketingEvent[] = [
-    { eventId: "sample-tasting", title: `${base.name} tasting day`, eventCategory: "Food Workshop", city: base.city, zone: base.zone || "", area: base.area || "", linkedLeadIds: [base.id], scheduledDate: isoDate(5), scheduledTimeStart: "11:00", scheduledTimeEnd: "13:00", venue: base.name, ownerName: "Priya", status: "CONFIRMED", expectedAttendance: 80, notes: "Vegetarian tasting menu and parent feedback cards.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
-    { eventId: "sample-pta", title: `${second.name} PTA introduction`, eventCategory: "Communication Skills", city: second.city, zone: second.zone || "", area: second.area || "", linkedLeadIds: [second.id], scheduledDate: isoDate(12), scheduledTimeStart: "16:00", scheduledTimeEnd: "18:00", venue: second.name, ownerName: "Arun", status: "PLANNED", expectedAttendance: 45, notes: "Bring pricing cards and allergy policy handout.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
-    { eventId: "sample-talk", title: `${third.name} food-safety talk`, eventCategory: "Healthcare", city: third.city, zone: third.zone || "", area: third.area || "", linkedLeadIds: [third.id], scheduledDate: isoDate(-8), scheduledTimeStart: "10:30", scheduledTimeEnd: "11:30", venue: third.name, ownerName: "Meena", status: "COMPLETED", expectedAttendance: 30, actualAttendance: 34, leadsGeneratedCount: 7, notes: "Strong interest in weekday subscriptions.", createdAt: isoTime(-16, 9), updatedAt: isoTime(-8, 12) },
+    { eventId: "sample-tasting", title: `${base.name} tasting day`, eventType: "TASTING_DAY", city: base.city, zone: base.zone || "", area: base.area || "", institutions: [seedInstitution(base)], scheduledDate: isoDate(5), scheduledTimeStart: "11:00", scheduledTimeEnd: "13:00", venue: base.name, ownerName: "Priya", status: "CONFIRMED", expectedAttendance: 80, notes: "Vegetarian tasting menu and parent feedback cards.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
+    { eventId: "sample-pta", title: `${second.name} PTA introduction`, eventType: "PTA_STALL", city: second.city, zone: second.zone || "", area: second.area || "", institutions: [seedInstitution(second)], scheduledDate: isoDate(12), scheduledTimeStart: "16:00", scheduledTimeEnd: "18:00", venue: second.name, ownerName: "Arun", status: "PLANNED", expectedAttendance: 45, notes: "Bring pricing cards and allergy policy handout.", createdAt: now.toISOString(), updatedAt: now.toISOString() },
+    { eventId: "sample-talk", title: `${third.name} food-safety talk`, eventType: "COMMUNITY_TALK", city: third.city, zone: third.zone || "", area: third.area || "", institutions: [seedInstitution(third)], scheduledDate: isoDate(-8), scheduledTimeStart: "10:30", scheduledTimeEnd: "11:30", venue: third.name, ownerName: "Meena", status: "COMPLETED", expectedAttendance: 30, actualAttendance: 34, leadsGeneratedCount: 7, notes: "Strong interest in weekday subscriptions.", createdAt: isoTime(-16, 9), updatedAt: isoTime(-8, 12) },
   ];
   const activities: OutreachActivity[] = [
     { activityId: "sample-call-1", leadId: base.id, activityType: "CALL", direction: "OUTBOUND", outcome: "MEETING_SCHEDULED", notes: "Coordinator confirmed a tasting discussion.", performedBy: "Priya", performedAt: isoTime(-1, 11), nextFollowUpDate: isoDate(1), createdAt: isoTime(-1, 11) },
@@ -103,3 +150,4 @@ export function buildMarketingSeeds(leads: SeedLead[], now = new Date()) {
   ];
   return { events, activities };
 }
+

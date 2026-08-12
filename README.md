@@ -1,6 +1,6 @@
-# LunchBox — school lunch ordering starter
+# LunchBox â€” school lunch ordering starter
 
-A responsive Next.js starter for parents ordering balanced vegetarian lunches for students in 6th–12th standard across Chennai, Madurai, Trichy and Coimbatore.
+A responsive Next.js starter for parents ordering balanced vegetarian lunches for students in 6thâ€“12th standard across Chennai, Madurai, Trichy and Coimbatore.
 Each lunch packet contains **1 chapati, 1 bowl of rice, sambar, curd, 2 vegetable curries, 1 serving of channa and 1 appalam**. The two vegetable curries rotate daily.
 
 ## Product plan
@@ -14,23 +14,23 @@ Each lunch packet contains **1 chapati, 1 bowl of rice, sambar, curd, 2 vegetabl
 
 ### Recommended phases
 
-1. **Pilot (4–6 weeks):** one kitchen and 2–3 schools per city, preorder only, weekly menu, coordinator-confirmed payment, delivery manifest and support workflow.
-2. **MVP (6–10 weeks):** parent authentication/OTP, Razorpay or school billing, subscriptions, holidays/cut-offs, allergen consent, refunds and operations dashboard.
+1. **Pilot (4â€“6 weeks):** one kitchen and 2â€“3 schools per city, preorder only, weekly menu, coordinator-confirmed payment, delivery manifest and support workflow.
+2. **MVP (6â€“10 weeks):** parent authentication/OTP, Razorpay or school billing, subscriptions, holidays/cut-offs, allergen consent, refunds and operations dashboard.
 3. **Scale:** route optimization, kitchen capacity, inventory forecasting, audit trails, meal feedback and BigQuery dashboards.
 
 ### Nutrition and safety guardrails
 
-The sample menu uses grain/millet, vegetables, protein and fruit/curd with grade-band portion adjustments. Before launch, a qualified pediatric dietitian must approve recipes, portion sizes and nutrition values. Capture allergies explicitly; use separate preparation and packing controls; show ingredients and allergens on every pack. Keep the menu moderate in salt, added sugar and oil, consistent with the ICMR–NIN Dietary Guidelines for Indians (2024). Implement FSSAI licensing, hygiene, temperature, traceability and recall procedures with a food-safety professional.
+The sample menu uses grain/millet, vegetables, protein and fruit/curd with grade-band portion adjustments. Before launch, a qualified pediatric dietitian must approve recipes, portion sizes and nutrition values. Capture allergies explicitly; use separate preparation and packing controls; show ingredients and allergens on every pack. Keep the menu moderate in salt, added sugar and oil, consistent with the ICMRâ€“NIN Dietary Guidelines for Indians (2024). Implement FSSAI licensing, hygiene, temperature, traceability and recall procedures with a food-safety professional.
 
 ## GCP architecture
 
 ```text
 Parent browser
-    │ HTTPS
-    ▼
-Next.js on Cloud Run ── service account / ADC
-    ├── BigQuery: meal catalogue + analytics/order event copy
-    └── Cloud Storage: immutable JSON order packets, menu images and exports
+    â”‚ HTTPS
+    â–¼
+Next.js on Cloud Run â”€â”€ service account / ADC
+    â”œâ”€â”€ BigQuery: meal catalogue + analytics/order event copy
+    â””â”€â”€ Cloud Storage: immutable JSON order packets, menu images and exports
 ```
 
 This starter creates orders and reserves per-kitchen daily capacity in one Firestore transaction. An idempotency key protects retries from creating a second order or consuming capacity twice. It then writes an immutable JSON **order packet** to Cloud Storage and a queryable analytics row to BigQuery. With no GCP environment variables, checkout runs safely in demo mode.
@@ -47,7 +47,7 @@ Recommended resources:
 
 The production build generates a versioned Serwist service worker at `public/sw.js`, precaches the application shell and provides `/~offline` as the document fallback. The manifest includes Android, maskable and Apple icons. PWA generation is disabled during `npm run dev` to prevent stale development caches.
 
-Serviceability follows city → onboarded school → grade. The current school names are explicitly labelled pilot placeholders in `lib/meals.ts`; replace them with approved school records before staging. Orders for unknown or cross-city schools are rejected by the server.
+Serviceability follows city â†’ onboarded school â†’ grade. The current school names are explicitly labelled pilot placeholders in `lib/meals.ts`; replace them with approved school records before staging. Orders for unknown or cross-city schools are rejected by the server.
 
 ## Run locally
 
@@ -63,7 +63,7 @@ Open `http://localhost:3000`. Leave the placeholder GCP variables unset to use d
 
 Open `/marketing`, search for Chennai schools, choose **Use this school**, and select a radius to find nearby apartment communities. Configure a browser-restricted `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` for the map and a separate server-side `GOOGLE_MAPS_API_KEY` for Places searches. Enable Maps JavaScript API and Places API (New), restrict each key to its intended API and caller, and inject production secrets through Secret Manager.
 
-Discovery runs and saved locations are written to the `marketing_discovery_runs` and `marketing_locations` BigQuery tables when GCP is configured. The tool stores public community/place records only; it does not identify individual parents living in an apartment.
+Discovery runs and saved locations are written to the `marketing_discovery_runs` and `marketing_locations` BigQuery tables when GCP is configured. Scheduled marketing events are written to `marketing_events`, with school and college relationships normalized in `marketing_event_institutions`. The tool stores public community/place records only; it does not identify individual parents living in an apartment.
 
 ### Reusable school-to-apartment research
 
@@ -74,11 +74,11 @@ Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/
 ## Configure Google Cloud
 
 1. Create a private bucket in `asia-south1` and enable uniform bucket-level access.
-2. Replace `YOUR_PROJECT_ID` in `infrastructure/bigquery.sql`, then run it in BigQuery.
+2. Replace `YOUR_PROJECT_ID` in `infrastructure/bigquery.sql`, then run it in BigQuery. The script is safe to rerun and creates `marketing_event_institutions`, then backfills it from legacy `marketing_events.linked_lead_ids` only when a matching `marketing_locations` school or college exists.
 3. Replace `YOUR_PROJECT_ID` in `infrastructure/seed.sql` and run it to load the pilot cities, kitchens, schools and delivery routes. The `MERGE` statements are safe to rerun. The capacity and cutoff values are placeholders and must be approved before launch.
 4. Create a Firestore Native database in `asia-south1`; use the default database or set `FIRESTORE_DATABASE_ID`.
 5. Enable Firebase Phone authentication, register the production domain, configure permitted SMS regions, and create a Firebase Web app.
-6. Set the four `NEXT_PUBLIC_FIREBASE_*` Web app values plus `GCP_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ORDERS_TABLE`, `GCS_BUCKET`, `DEFAULT_DAILY_CAPACITY`, and `ORDER_CUTOFF_IST` on Cloud Run.
+6. Set the four `NEXT_PUBLIC_FIREBASE_*` Web app values plus `GCP_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ORDERS_TABLE`, `GCS_BUCKET`, `DEFAULT_DAILY_CAPACITY`, and `ORDER_CUTOFF_IST` on Cloud Run. If you use non-default marketing table names, also set `BIGQUERY_MARKETING_EVENTS_TABLE`, `BIGQUERY_MARKETING_EVENT_INSTITUTIONS_TABLE`, and `BIGQUERY_MARKETING_LOCATIONS_TABLE`.
 7. Give the Cloud Run service identity Firestore user access plus the least-privilege BigQuery and Storage roles listed above. Production orders require a valid Firebase ID token whenever `GCP_PROJECT_ID` is configured.
 8. Deploy `infrastructure/firestore.rules`. They intentionally deny direct browser access because parent-owned student profiles and orders are accessed only through token-verified server APIs.
 9. Deploy from the project directory:
@@ -121,7 +121,7 @@ The `/operations` screen uses `roles` plus scoped custom claims: `kitchen_ids`, 
 
 ### Payments
 
-When the three `RAZORPAY_*` variables are configured, orders begin as `PENDING_PAYMENT` and consume pending—not confirmed—capacity. Checkout creates a Razorpay Order on the server. Fulfilment requires a captured INR payment with matching amount and a valid signature. Configure the Razorpay Dashboard webhook URL as `/api/webhooks/razorpay` and subscribe to `payment.captured`, `order.paid`, `refund.created`, `refund.processed`, and `refund.failed`. Store API and webhook secrets in Secret Manager; the webhook secret must be separate from the API key secret.
+When the three `RAZORPAY_*` variables are configured, orders begin as `PENDING_PAYMENT` and consume pendingâ€”not confirmedâ€”capacity. Checkout creates a Razorpay Order on the server. Fulfilment requires a captured INR payment with matching amount and a valid signature. Configure the Razorpay Dashboard webhook URL as `/api/webhooks/razorpay` and subscribe to `payment.captured`, `order.paid`, `refund.created`, `refund.processed`, and `refund.failed`. Store API and webhook secrets in Secret Manager; the webhook secret must be separate from the API key secret.
 
 Run `POST /api/tasks/expire-payments` every minute from Cloud Scheduler with the `X-Task-Secret` header. It expires abandoned holds after `PAYMENT_HOLD_MINUTES` and releases pending capacity atomically. Deploy `infrastructure/firestore.indexes.json` before enabling this task. Full refunds are available through the admin payments API only before every selected meal cutoff; they use Razorpay refund idempotency and release confirmed capacity exactly once.
 
@@ -146,10 +146,13 @@ Marketing leads, scheduled events and outreach activities are stored in Firestor
 
 For short-lived development only, `MARKETING_OS_PUBLIC=true` removes the Marketing OS sign-in gate and permits public Firestore workspace reads and writes through the server API. Never enable this flag for production or real contact data.
 
+Marketing event persistence keeps `marketing_events.linked_lead_ids` during migration but no longer writes it for new event relationships. After running the BigQuery schema/backfill and verifying `marketing_event_institutions` row counts and sampled joins, remove the legacy column in a later explicit migration.
+
 - Authentication and role-based admin access
 - School/campus master data and delivery cut-off calendar
 - Payment idempotency, webhook verification, cancellation and refund handling
 - FSSAI-approved kitchen/transport SOPs and batch/temperature logs
 - Allergy acknowledgements and an emergency escalation process
-- Consent, encryption, audit logs, data minimization and retention for children’s data
+- Consent, encryption, audit logs, data minimization and retention for childrenâ€™s data
 - Tests, monitoring, CI/CD and separate development/staging/production projects
+
