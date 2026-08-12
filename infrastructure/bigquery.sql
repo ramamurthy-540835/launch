@@ -233,3 +233,37 @@ SELECT
   SUM(free_meals) >= 25 AS cap_reached
 FROM `YOUR_PROJECT_ID.school_lunch.free_meal_summary`
 GROUP BY kitchen_id, service_date;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_locations` (
+  location_id STRING NOT NULL,
+  place_id STRING,
+  name STRING NOT NULL,
+  location_type STRING NOT NULL,
+  address STRING NOT NULL,
+  city STRING NOT NULL,
+  latitude FLOAT64,
+  longitude FLOAT64,
+  phone STRING,
+  website STRING,
+  rating FLOAT64,
+  reviews INT64,
+  related_school_place_id STRING,
+  distance_km FLOAT64,
+  status STRING NOT NULL,
+  saved_at TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(saved_at)
+CLUSTER BY city, location_type, related_school_place_id;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_discovery_runs` (
+  search_id STRING NOT NULL,
+  searched_at TIMESTAMP NOT NULL,
+  school_place_id STRING NOT NULL,
+  school_name STRING NOT NULL,
+  school_latitude FLOAT64,
+  school_longitude FLOAT64,
+  radius_km FLOAT64 NOT NULL,
+  result_count INT64 NOT NULL
+)
+PARTITION BY DATE(searched_at)
+CLUSTER BY school_place_id;
