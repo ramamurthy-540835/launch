@@ -35,6 +35,18 @@ const stages: LeadStage[] = ["New", "Contacted", "Interested", "Meeting"];
 const storageKey = "lunchbox-marketing-leads-v1";
 const resultsPerPage = 10;
 
+function repairMojibake(value: string) {
+  let repaired = value;
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  for (let attempt = 0; attempt < 3 && /[Ãâ]/.test(repaired); attempt += 1) {
+    const bytes = Uint8Array.from(repaired, (character) => character.charCodeAt(0));
+    const next = decoder.decode(bytes);
+    if (next === repaired) break;
+    repaired = next;
+  }
+  return repaired;
+}
+
 export default function MarketingPage() {
   const [city, setCity] = useState<MarketingCity>("Chennai");
   const [zone, setZone] = useState("South / South-East Chennai");
@@ -67,6 +79,19 @@ export default function MarketingPage() {
   const [responseAware, setResponseAware] = useState(true);
   const [campaignImage, setCampaignImage] = useState("auto");
   const [customImageUrl, setCustomImageUrl] = useState("");
+
+  useEffect(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      textNodes.push(node as Text);
+      node = walker.nextNode();
+    }
+    textNodes.forEach((textNode) => {
+      if (/[Ãâ]/.test(textNode.data)) textNode.data = repairMojibake(textNode.data);
+    });
+  });
 
   useEffect(() => { void loadWorkspace(); },
     // The shared development workspace loads once when Marketing OS opens.
