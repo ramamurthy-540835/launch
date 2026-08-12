@@ -2,10 +2,35 @@ export const marketingCities = ["Chennai", "Madurai", "Trichy", "Coimbatore"] as
 
 export const marketingGeography = {
   Chennai: {
-    "North Chennai": ["Tiruvottiyur", "Manali", "Madhavaram", "Tondiarpet", "Royapuram"],
-    "South Chennai": ["Adyar", "Velachery", "Thiruvanmiyur", "Sholinganallur", "Tambaram"],
-    "West Chennai": ["Anna Nagar", "Ambattur", "Mogappair", "Porur", "Poonamallee"],
-    "East-Central Chennai": ["Mylapore", "T Nagar", "Nungambakkam", "Egmore", "Perambur"],
+    "North Chennai": [
+      "Tiruvottiyur", "Ennore", "Kathivakkam", "Manali", "Manali New Town", "Madhavaram",
+      "Puzhal", "Red Hills", "Mathur", "Sathangadu", "Kodungaiyur", "Moolakadai", "Perambur",
+      "Vyasarpadi", "Tondiarpet", "Washermenpet", "Royapuram", "Korukkupet",
+      "Old Washermenpet", "Pulianthope", "Choolai",
+    ],
+    "East / North-East Chennai": [
+      "George Town", "Parrys", "Broadway", "Sowcarpet", "Mint", "Park Town", "Periamet",
+      "Egmore", "Triplicane", "Chepauk", "Royapettah", "Mylapore", "Santhome", "R.A. Puram",
+      "Mandaveli", "Alwarpet", "Abiramapuram", "Adyar", "Besant Nagar", "Kasturba Nagar",
+      "Kotturpuram", "Thiruvanmiyur", "Kottivakkam", "Palavakkam", "Neelankarai",
+    ],
+    "West Chennai": [
+      "Ambattur", "Avadi", "Mogappair East", "Mogappair West", "Anna Nagar", "Shenoy Nagar",
+      "Arumbakkam", "Aminjikarai", "Kilpauk", "Nungambakkam", "Koyambedu", "Thirumangalam",
+      "Villivakkam", "Korattur", "Padi", "Maduravoyal", "Porur", "Valasaravakkam",
+      "Alwarthirunagar", "Virugambakkam", "Saligramam", "Nesapakkam", "Ramapuram",
+    ],
+    "South-West Chennai": [
+      "T. Nagar", "West Mambalam", "Saidapet", "Ashok Nagar", "KK Nagar", "Jafferkhanpet",
+      "Guindy", "Ekkatuthangal", "Nandanam", "Alandur", "Nanganallur", "St. Thomas Mount",
+      "Madipakkam", "Keelkattalai", "Pallavaram", "Chromepet", "Pammal", "Tambaram",
+      "Selaiyur", "Perungalathur", "Vandalur", "Urapakkam",
+    ],
+    "South / South-East Chennai": [
+      "Velachery", "Perungudi", "Thoraipakkam", "Pallikaranai", "Medavakkam", "Kovilambakkam",
+      "Sholinganallur", "Semmenchery", "Navalur", "Siruseri", "Kelambakkam", "Karanaithangal",
+      "OMR", "ECR", "Sithalapakkam", "Vengaivasal", "Mambakkam", "Thaiyur", "Padur",
+    ],
   },
   Madurai: {
     "Madurai North": ["Tallakulam", "K Pudur", "Iyer Bungalow", "Oomachikulam"],
@@ -39,6 +64,11 @@ export const audienceTypes = {
     label: "Schools",
     searchTerm: "schools",
     intent: "Reach principals, coordinators and parent communities",
+  },
+  colleges: {
+    label: "Colleges",
+    searchTerm: "colleges and universities",
+    intent: "Reach college administrators, campus coordinators and student communities",
   },
   apartments: {
     label: "Apartment communities",

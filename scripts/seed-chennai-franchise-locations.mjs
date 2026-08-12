@@ -24,10 +24,12 @@ const locations = [
 ];
 
 const batch = db.batch();
-for (const [id, name, zoneId, zoneName, lat, lng] of locations) {
+for (const [index, [id, name, zoneId, zoneName, lat, lng]] of locations.entries()) {
   const reference = db.collection("franchise_locations").doc(id);
   batch.set(reference, {
     name, zoneId, zoneName, lat, lng,
+    plannedFranchiseCount: index < 3 ? 14 : 13,
+    dailyStudentCapacity: 1500,
     status: "available",
     franchiseCount: 0,
     activeDriverCount: 0,

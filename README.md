@@ -183,8 +183,6 @@ npm run dev
 
 Open `http://localhost:3000`. Leave the placeholder GCP variables unset to use demo checkout.
 
-Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/api/health`; readiness can use `/api/health?ready=1`, which also checks Firestore access. Rate-limit documents in `rate_limits` should have Firestore TTL enabled on `expires_at`.
-
 ### School and apartment marketing map
 
 Open `/marketing`, search for Chennai schools, choose **Use this school**, and select a radius to find nearby apartment communities. Configure a browser-restricted `GOOGLE_MAPS_BROWSER_API_KEY` for the map and a separate server-side `GOOGLE_MAPS_API_KEY` for Places searches. Enable Maps JavaScript API and Places API (New), restrict each key to its intended API and caller, and inject production secrets through Secret Manager.
@@ -194,6 +192,8 @@ Discovery runs and saved locations are written to the `marketing_discovery_runs`
 ### Reusable school-to-apartment research
 
 The privacy-safe Python research module in [`research/`](research/README.md) produces deduplicated school-to-apartment proximity datasets, locality summaries, Excel exports and source audit logs. It stores completed outputs locally and can automatically copy the same files to timestamped folders under `gs://chennaifood/marketing/research/runs/`. It supports approved school CSV input, configurable Chennai localities/radii and a rate-limited OpenStreetMap/Overpass provider. It does not collect resident- or child-level personal data.
+
+Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/api/health`; readiness can use `/api/health?ready=1`, which also checks Firestore access. Rate-limit documents in `rate_limits` should have Firestore TTL enabled on `expires_at`.
 
 ## Configure Google Cloud
 
@@ -254,6 +254,23 @@ For infrastructure-only staging before Firebase/Razorpay onboarding, set `REQUIR
 
 ## Important production additions
 
+### Automated outreach configuration
+
+The marketing workspace can prepare audience-specific campaigns for schools, colleges, apartment communities and parent hubs. Preview mode works without provider credentials. Live sends require explicit per-channel consent on every recipient and all of these server-side settings:
+
+- `SENDGRID_API_KEY` and a verified `SENDGRID_FROM_EMAIL`
+- `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`
+- `CAMPAIGN_ADMIN_TOKEN` to prevent public use of the send endpoint
+- `NEXT_PUBLIC_APP_URL` so Meta and email recipients can load the public campaign images
+
+Store API keys and the admin token in Google Secret Manager and expose them to Cloud Run as secrets; never use browser-prefixed environment variables for credentials. WhatsApp sends use approved media templates named `lunchbox_school_intro`, `lunchbox_college_intro`, and `lunchbox_community_intro`. The API remains in preview-only operation until the provider secrets exist.
+
+### Shared Marketing OS workspace
+
+Marketing leads, scheduled events and outreach activities are stored in Firestore through the authenticated `/api/marketing/workspace` server route. Configure the Firebase web values (`NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, and optionally `NEXT_PUBLIC_FIREBASE_APP_ID`), enable email/password sign-in in Firebase Authentication, add the Cloud Run domains to Authorized domains, and set `MARKETING_ADMIN_EMAIL` to the authorized staff account. Existing browser-local Marketing OS records are imported once after the authorized account signs in.
+
+For short-lived development only, `MARKETING_OS_PUBLIC=true` removes the Marketing OS sign-in gate and permits public Firestore workspace reads and writes through the server API. Never enable this flag for production or real contact data.
+
 - Authentication and role-based admin access
 - School/campus master data and delivery cut-off calendar
 - Payment idempotency, webhook verification, cancellation and refund handling
@@ -261,3 +278,21 @@ For infrastructure-only staging before Firebase/Razorpay onboarding, set `REQUIR
 - Allergy acknowledgements and an emergency escalation process
 - Consent, encryption, audit logs, data minimization and retention for children’s data
 - Tests, monitoring, CI/CD and separate development/staging/production projects
+
+### Franchise territory planner and Cloud Build
+
+The franchise opportunity drawer uses the Firestore `franchise_locations` collection to present city → region → service-area selection. Each document can set `city`, `zoneId`/`regionId`, `zoneName`/`regionName`, `plannedFranchiseCount`, `franchiseCount`, `dailyStudentCapacity`, `studentCount`, `lat`, and `lng`. The network target is 198 franchises and the default capacity is 1,500 students per franchise per day. Run the guarded seed to publish the 198-slot Chennai plan:
+
+```bash
+CONFIRM_FRANCHISE_TERRITORY_SEED=yes GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID node scripts/seed-chennai-franchise-locations.mjs
+```
+
+The interactive map requires a browser/referrer-restricted Maps JavaScript API key stored in Secret Manager as `google-maps-browser-api-key`. Keep server-side Places credentials separate.
+
+Create an Artifact Registry Docker repository named `lunchbox`, grant the Cloud Build service account permission to push images, deploy Cloud Run, act as the runtime service account, and access the browser Maps secret, then submit:
+
+```bash
+gcloud builds submit --project YOUR_PROJECT_ID --config cloudbuild.yaml .
+```
+
+Override `_REGION`, `_SERVICE`, `_REPOSITORY`, or `_GOOGLE_MAPS_BROWSER_SECRET` with Cloud Build substitutions when the deployed names differ.

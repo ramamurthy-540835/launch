@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable @typescript-eslint/no-explicit-any -- Google Maps SDK is loaded dynamically. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Google Maps SDK is loaded dynamically by multiple map components. */
 
 import { useEffect, useRef, useState } from "react";
 import type { MarketingLead } from "@/lib/marketing";

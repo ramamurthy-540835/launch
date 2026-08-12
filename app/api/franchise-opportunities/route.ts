@@ -10,6 +10,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await getFranchiseOpportunities());
   } catch (error) {
     logError("franchise_opportunities.load_failed", error, { correlationId });
-    return NextResponse.json({ error: "Unable to load Chennai opportunities.", correlationId }, { status: 500 });
+    return NextResponse.json({ error: "Unable to load franchise opportunities.", correlationId }, { status: 500 });
   }
 }

@@ -7,18 +7,20 @@ from pathlib import Path
 from urllib.parse import quote
 
 
-REGIONS = ("North Chennai", "South Chennai", "West Chennai", "East-Central Chennai")
+REGIONS = ("North Chennai", "East / North-East Chennai", "West Chennai", "South-West Chennai", "South / South-East Chennai")
 BASIS = "Operational coordinate grouping; not an official municipal boundary"
 
 
 def region_for(latitude: float, longitude: float) -> str:
     if latitude >= 13.10:
         return "North Chennai"
-    if latitude <= 13.00:
-        return "South Chennai"
-    if longitude <= 80.20:
+    if latitude <= 12.97 and longitude >= 80.18:
+        return "South / South-East Chennai"
+    if latitude <= 13.04:
+        return "South-West Chennai" if longitude < 80.25 else "South / South-East Chennai"
+    if longitude <= 80.23:
         return "West Chennai"
-    return "East-Central Chennai"
+    return "East / North-East Chennai"
 
 
 def map_formula(latitude: str, longitude: str, label: str) -> str:

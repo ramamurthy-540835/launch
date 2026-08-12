@@ -1,3 +1,4 @@
+import { Storage } from "@google-cloud/storage";
 import { firestoreClient } from "@/lib/firestore";
 
 export type Franchise = {
@@ -22,8 +23,19 @@ export type Franchise = {
   location: { lat: number; lng: number } | null;
 };
 
+type FranchiseFilters = { area?: string; category?: string; search?: string; limit?: number };
+type StorageFile = ReturnType<ReturnType<Storage["bucket"]>["file"]>;
+
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 function numberOrNull(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? value : null; }
+function record(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
+
+function idFrom(value: Record<string, unknown>, index: number) {
+  const explicit = text(value.id);
+  if (explicit) return explicit;
+  const generated = [text(value.name), text(value.area), text(value.address)].filter(Boolean).join("-").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return generated || `franchise-${index + 1}`;
+}
 
 function franchiseFrom(id: string, value: Record<string, unknown>): Franchise {
   return {
@@ -34,16 +46,87 @@ function franchiseFrom(id: string, value: Record<string, unknown>): Franchise {
   };
 }
 
-export async function getFranchises(filters: { area?: string; category?: string; search?: string; limit?: number } = {}) {
-  const snapshot = await firestoreClient().collection("franchises").where("status", "==", "active").limit(Math.min(Math.max(filters.limit || 100, 1), 250)).get();
+function activeStorageRecords(payload: unknown) {
+  const values = Array.isArray(payload) ? payload : record(payload) && Array.isArray(payload.franchises) ? payload.franchises : record(payload) ? [payload] : [];
+  return values.filter(record).filter((value) => value.active !== false && text(value.status).toLowerCase() !== "inactive");
+}
+
+async function downloadJson(file: StorageFile) {
+  const [contents] = await file.download();
+  return JSON.parse(contents.toString("utf8")) as unknown;
+}
+
+async function getStorageFranchises(): Promise<Franchise[] | null> {
+  const projectId = process.env.GCP_PROJECT_ID?.trim();
+  const bucketName = process.env.GCS_BUCKET?.trim();
+  if (!projectId || !bucketName) return null;
+
+  const bucket = new Storage({ projectId }).bucket(bucketName);
+  const configuredObject = process.env.GCS_FRANCHISES_OBJECT?.trim();
+  if (configuredObject) {
+    const payload = await downloadJson(bucket.file(configuredObject));
+    return activeStorageRecords(payload).map((value, index) => franchiseFrom(idFrom(value, index), value));
+  }
+
+  try {
+    const payload = await downloadJson(bucket.file("franchises.json"));
+    return activeStorageRecords(payload).map((value, index) => franchiseFrom(idFrom(value, index), value));
+  } catch (error) {
+    if ((error as { code?: number }).code !== 404) throw error;
+  }
+
+  const prefix = process.env.GCS_FRANCHISES_PREFIX?.trim() || "franchises/";
+  const [files] = await bucket.getFiles({ prefix, maxResults: 1000, autoPaginate: false });
+  const jsonFiles = files.filter((file) => file.name.endsWith(".json"));
+  const values: Record<string, unknown>[] = [];
+  for (let start = 0; start < jsonFiles.length; start += 20) {
+    const payloads = await Promise.all(jsonFiles.slice(start, start + 20).map(downloadJson));
+    payloads.forEach((payload) => values.push(...activeStorageRecords(payload)));
+  }
+  return values.map((value, index) => franchiseFrom(idFrom(value, index), value));
+}
+
+function normalizedLimit(value: number | undefined) {
+  const requested = Number.isFinite(value) ? Math.trunc(value as number) : 1000;
+  return Math.min(Math.max(requested, 1), 1000);
+}
+
+function applyFilters(records: Franchise[], filters: FranchiseFilters) {
   const term = filters.search?.trim().toLowerCase();
-  const records = snapshot.docs.map((document) => franchiseFrom(document.id, document.data())).filter((item) => (!filters.area || item.area === filters.area) && (!filters.category || item.category === filters.category) && (!term || [item.name, item.companyName, item.area, item.category].join(" ").toLowerCase().includes(term)));
-  return { franchises: records.sort((a, b) => a.name.localeCompare(b.name)), source: "firestore" as const };
+  return records
+    .filter((item) => (!filters.area || item.area === filters.area) && (!filters.category || item.category === filters.category) && (!term || [item.name, item.companyName, item.area, item.category].join(" ").toLowerCase().includes(term)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, normalizedLimit(filters.limit));
+}
+
+export async function getFranchises(filters: FranchiseFilters = {}) {
+  let firestoreError: unknown;
+  try {
+    const snapshot = await firestoreClient().collection("franchises").where("status", "==", "active").limit(normalizedLimit(filters.limit)).get();
+    const records = snapshot.docs.map((document) => franchiseFrom(document.id, document.data()));
+    if (records.length) return { franchises: applyFilters(records, filters), source: "firestore" as const };
+  } catch (error) {
+    firestoreError = error;
+  }
+
+  const storageRecords = await getStorageFranchises();
+  if (storageRecords?.length || !firestoreError) return { franchises: applyFilters(storageRecords || [], filters), source: storageRecords ? "gcs" as const : "firestore" as const };
+  throw firestoreError;
 }
 
 export async function getFranchise(id: string) {
-  const document = await firestoreClient().collection("franchises").doc(id).get();
-  return document.exists ? franchiseFrom(document.id, document.data() || {}) : null;
+  let firestoreError: unknown;
+  try {
+    const document = await firestoreClient().collection("franchises").doc(id).get();
+    if (document.exists) return franchiseFrom(document.id, document.data() || {});
+  } catch (error) {
+    firestoreError = error;
+  }
+
+  const storageRecords = await getStorageFranchises();
+  const match = storageRecords?.find((item) => item.id === id) || null;
+  if (match || !firestoreError) return match;
+  throw firestoreError;
 }
 
 export function externalUrl(value: string) {

@@ -8,7 +8,7 @@ const config = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-export const isFirebaseClientConfigured = Object.values(config).every(Boolean);
+export const isFirebaseClientConfigured = Boolean(config.apiKey && config.authDomain && config.projectId);
 
 export function firebaseAuth() {
   if (!isFirebaseClientConfigured) return null;

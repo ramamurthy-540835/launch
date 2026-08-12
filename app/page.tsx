@@ -1,7 +1,7 @@
 "use client";
 
 import InstallAppButton from "@/components/InstallAppButton";
-import FranchiseDirectory from "@/components/FranchiseDirectory";
+import FranchiseLocationDashboard from "@/components/FranchiseLocationDashboard";
 import FranchiseNetworkExplorer from "@/components/franchises/FranchiseNetworkExplorer";
 import type { Franchise } from "@/lib/franchises";
 import { useEffect, useMemo, useState } from "react";
@@ -148,7 +148,7 @@ export default function Home() {
         <div><span>2</span><b>Tell us the school</b><p>We group deliveries by campus and lunch break.</p></div>
         <div><span>3</span><b>We deliver fresh</b><p>Every pack arrives sealed, named and on time.</p></div>
       </section>
-      <section className="franchise-section" id="franchises"><div className="section-heading"><div><span className="kicker">CHENNAI FRANCHISE DIRECTORY</span><h2>Find a franchise in Chennai.</h2></div><p>Explore approved LunchBox franchise partners and Chennai territory opportunities.</p></div><FranchiseNetworkExplorer />{franchiseError && <p className="franchise-message" role="alert">{franchiseError}</p>}{!franchiseError && franchises.length > 0 && <FranchiseDirectory franchises={franchises} />}</section>
+      <section className="franchise-section" id="franchises"><div className="section-heading"><div><span className="kicker">TAMIL NADU FRANCHISE DIRECTORY</span><h2>Explore the LunchBox partner network.</h2></div><p>Compare approved franchise partners across Chennai, Madurai, Trichy, and Coimbatore.</p></div><FranchiseNetworkExplorer />{franchiseError && <p className="franchise-message" role="alert">{franchiseError}</p>}{!franchiseError && <FranchiseLocationDashboard franchises={franchises} />}</section>
 
       <footer><a className="brand" href="#top"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></a><p>Made with care for growing minds in Tamil Nadu.</p><small>Menu is illustrative. Final meal plans should be approved by a qualified pediatric dietitian and the participating school.</small></footer>
 
