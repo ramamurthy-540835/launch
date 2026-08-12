@@ -222,10 +222,10 @@ export default function MarketingPage() {
       <Link className={styles.brand} href="/"><span>L</span>LunchBox</Link>
       <p className={styles.workspace}>MARKETING OS</p>
       <nav>
-        <button className={tab === "discover" ? styles.active : ""} onClick={() => setTab("discover")}><i>âŒ•</i>Discover</button>
-        <button className={tab === "pipeline" ? styles.active : ""} onClick={() => setTab("pipeline")}><i>â—Ž</i>Lead pipeline <b>{saved.length}</b></button>
-        <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i>â†—</i>Outreach kit</button>
-        <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i>â—«</i>Events</button>
+        <button className={tab === "discover" ? styles.active : ""} onClick={() => setTab("discover")}><i aria-hidden="true">&#x2315;</i>Discover</button>
+        <button className={tab === "pipeline" ? styles.active : ""} onClick={() => setTab("pipeline")}><i aria-hidden="true">&#x25CB;</i>Lead pipeline <b>{saved.length}</b></button>
+        <button className={tab === "outreach" ? styles.active : ""} onClick={() => setTab("outreach")}><i aria-hidden="true">&#x2197;</i>Outreach kit</button>
+        <button className={tab === "events" ? styles.active : ""} onClick={() => setTab("events")}><i aria-hidden="true">&#x25EB;</i>Events</button>
       </nav>
       <div className={styles.sideNote}><strong>Development mode</strong><p>Shared Firestore data is currently public. Re-enable staff authentication before production use.</p></div>
     </aside>
@@ -399,4 +399,3 @@ function mergeRecords<T>(remote: T[], local: T[], id: (item: T) => string) {
   local.forEach((item) => merged.set(id(item), item));
   return [...merged.values()];
 }
-
