@@ -35,5 +35,5 @@ jobs:
           --region "${{ vars.GCP_REGION }}"
           --service-account "${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}"
           --allow-unauthenticated
-          --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},BIGQUERY_PROJECT_ID=${{ vars.BIGQUERY_PROJECT_ID }},BIGQUERY_DATASET=school_lunch,BIGQUERY_ORDERS_TABLE=orders,GCS_BUCKET=${{ vars.GCS_BUCKET }},FIRESTORE_DATABASE_ID=(default),PAYMENT_HOLD_MINUTES=15,REQUIRE_FIREBASE_AUTH=false,ENABLE_PAYMENTS=false"
+          --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},BIGQUERY_PROJECT_ID=${{ vars.BIGQUERY_PROJECT_ID }},BIGQUERY_DATASET=school_lunch,BIGQUERY_ORDERS_TABLE=orders,GCS_BUCKET=${{ vars.GCS_BUCKET }},FIRESTORE_DATABASE_ID=(default),PAYMENT_HOLD_MINUTES=15,REQUIRE_FIREBASE_AUTH=false,ENABLE_PAYMENTS=false,MARKETING_OS_PUBLIC=true"
           --set-secrets "PAYMENT_EXPIRY_TASK_SECRET=payment-expiry-task-secret:latest"
