@@ -81,7 +81,7 @@ Analytical DDL is `bq_purchase_cost_history`; operational collections stay in Fi
 
 ## 6. REST API specification
 
-All endpoints require `Authorization: Bearer <Firebase ID token>`, return JSON, accept `X-Request-Id`, and use idempotency keys on financial/movement writes. Collection responses are cursor-paginated in production.
+All endpoints require `Authorization: Bearer <Firebase ID token>`, return JSON, accept `X-Request-Id`, and use idempotency keys on financial/movement writes. Collection responses are cursor-paginated in production. The consolidated `GET /api/inventory/dashboard` is temporarily public and read-only only when the existing staging switch `REQUIRE_FIREBASE_AUTH=false` is set; production keeps it authenticated by leaving that switch enabled.
 
 | Domain | Endpoints |
 |---|---|

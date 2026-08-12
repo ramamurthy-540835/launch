@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyInventoryAccess } from "@/lib/firebase-admin";
+import { isParentAuthRequired, verifyInventoryAccess } from "@/lib/firebase-admin";
 import { firestoreClient } from "@/lib/firestore";
 import { apiError } from "@/lib/inventory/api";
 import { serialize } from "@/lib/inventory/service";
@@ -7,7 +7,9 @@ import { serialize } from "@/lib/inventory/service";
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url); const locationId = url.searchParams.get("locationId");
-    const actor = await verifyInventoryAccess(request, ["admin", "warehouse_manager", "branch_store_manager", "kitchen_manager", "logistics_manager", "procurement_manager", "finance_analyst", "planning_manager"], locationId || undefined);
+    const actor = isParentAuthRequired()
+      ? await verifyInventoryAccess(request, ["admin", "warehouse_manager", "branch_store_manager", "kitchen_manager", "logistics_manager", "procurement_manager", "finance_analyst", "planning_manager"], locationId || undefined)
+      : { uid: "public-inventory-dashboard", roles: [], isAdmin: true, locationIds: [] };
     let balancesQuery: FirebaseFirestore.Query = firestoreClient().collection("inventory_balances");
     let alertsQuery: FirebaseFirestore.Query = firestoreClient().collection("inventory_alerts").where("status", "in", ["OPEN", "ACKNOWLEDGED", "ESCALATED"]);
     if (locationId) { balancesQuery = balancesQuery.where("location_id", "==", locationId); alertsQuery = alertsQuery.where("location_id", "==", locationId); }
