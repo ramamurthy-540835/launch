@@ -1,0 +1,9 @@
+import { FieldValue } from "@google-cloud/firestore";
+import { NextResponse } from "next/server";
+import { verifyInventoryAccess } from "@/lib/firebase-admin";
+import { firestoreClient } from "@/lib/firestore";
+import { apiError, jsonBody } from "@/lib/inventory/api";
+import { consumptionFormulaSchema } from "@/lib/inventory/domain";
+import { serialize, writeAudit } from "@/lib/inventory/service";
+export async function GET(request: Request) { try { await verifyInventoryAccess(request, ["admin", "planning_manager", "procurement_manager", "kitchen_manager"]); const snapshot = await firestoreClient().collection("consumption_formulas").orderBy("effective_from", "desc").limit(500).get(); return NextResponse.json({ formulas: snapshot.docs.map(serialize) }); } catch (error) { return apiError(error); } }
+export async function POST(request: Request) { try { const actor = await verifyInventoryAccess(request, ["admin", "planning_manager"]); const parsed = consumptionFormulaSchema.parse(await jsonBody(request)); const ref = parsed.formulaId ? firestoreClient().collection("consumption_formulas").doc(parsed.formulaId) : firestoreClient().collection("consumption_formulas").doc(); const record = { formula_id: ref.id, item_id: parsed.itemId, menu_type: parsed.menuType, consumption_per_consumer: parsed.consumptionPerConsumer, unit: parsed.unit, wastage_buffer_percent: parsed.wastageBufferPercent, effective_from: parsed.effectiveFrom, effective_to: parsed.effectiveTo || null, status: parsed.status, created_by: actor.uid, updated_by: actor.uid, created_at: FieldValue.serverTimestamp(), updated_at: FieldValue.serverTimestamp() }; await ref.create(record); await writeAudit(actor.uid, "formula.create", "consumption_formula", ref.id, null, record); return NextResponse.json({ formulaId: ref.id }, { status: 201 }); } catch (error) { return apiError(error); } }

@@ -1,0 +1,10 @@
+import { FieldValue } from "@google-cloud/firestore";
+import { NextResponse } from "next/server";
+import { verifyInventoryAccess } from "@/lib/firebase-admin";
+import { firestoreClient } from "@/lib/firestore";
+import { apiError, jsonBody } from "@/lib/inventory/api";
+import { locationSchema } from "@/lib/inventory/domain";
+import { serialize, writeAudit } from "@/lib/inventory/service";
+
+export async function GET(request: Request) { try { const actor = await verifyInventoryAccess(request, ["admin", "warehouse_manager", "branch_store_manager", "kitchen_manager", "logistics_manager", "procurement_manager", "finance_analyst", "planning_manager"]); const snapshot = await firestoreClient().collection("inventory_locations").where("status", "==", "ACTIVE").get(); const records = snapshot.docs.map(serialize).filter((location) => actor.isAdmin || actor.locationIds.includes(String(location.id))); return NextResponse.json({ locations: records }); } catch (error) { return apiError(error); } }
+export async function POST(request: Request) { try { const actor = await verifyInventoryAccess(request, ["admin"]); const parsed = locationSchema.parse(await jsonBody(request)); const ref = parsed.locationId ? firestoreClient().collection("inventory_locations").doc(parsed.locationId) : firestoreClient().collection("inventory_locations").doc(); const record = { location_id: ref.id, location_name: parsed.locationName, location_type: parsed.locationType, city: parsed.city, state: parsed.state, address: parsed.address, capacity: parsed.capacity, capacity_unit: parsed.capacityUnit, default_planning_period_days: parsed.defaultPlanningPeriodDays, primary_warehouse_id: parsed.primaryWarehouseId || null, fallback_warehouse_ids: parsed.fallbackWarehouseIds, status: parsed.status, created_at: FieldValue.serverTimestamp(), updated_at: FieldValue.serverTimestamp() }; await ref.create(record); await writeAudit(actor.uid, "location.create", "inventory_location", ref.id, null, record); return NextResponse.json({ locationId: ref.id }, { status: 201 }); } catch (error) { return apiError(error); } }
