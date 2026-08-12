@@ -37,6 +37,20 @@ export default function MarketingEvents({ leads, events, activities, onEventsCha
   const [completionId, setCompletionId] = useState(""); const [completion, setCompletion] = useState({ actualAttendance: "", leadsGeneratedCount: "" });
 
   useEffect(() => { if (!initialLeadId) return; setActivityDraft((value) => ({ ...value, leadId: initialLeadId })); setShowActivityForm(true); onInitialLeadHandled?.(); }, [initialLeadId, onInitialLeadHandled]);
+  useEffect(() => {
+    const decodedBullet = String.fromCharCode(0x00c2, 0x00b7);
+    const doublyDecodedBullet = String.fromCharCode(0x00c3, 0x201a, 0x00c2, 0x00b7);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      textNodes.push(node as Text);
+      node = walker.nextNode();
+    }
+    textNodes.forEach((textNode) => {
+      textNode.data = textNode.data.split(doublyDecodedBullet).join(" · ").split(decodedBullet).join(" · ");
+    });
+  }, [events]);
   const saveEvents = onEventsChange;
   const saveActivities = onActivitiesChange;
 
@@ -104,4 +118,3 @@ function EventCard({ event, leads, onStatus, onEdit, onDelete }: { event: Market
 function Empty({ title, text, action, onAction, secondary, onSecondary }: { title: string; text: string; action: string; onAction: () => void; secondary?: string; onSecondary?: () => void }) {
   return <div className={styles.empty}><span>â—‡</span><h3>{title}</h3><p>{text}</p><button onClick={onAction}>{action}</button>{secondary && <button className={styles.secondary} onClick={onSecondary}>{secondary}</button>}</div>;
 }
-
