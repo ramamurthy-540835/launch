@@ -22,7 +22,7 @@ export default function MarketingLeadPicker({ leads, selectedIds, onChange, mult
       const id = canonicalInstitutionId(lead);
       return <label key={id}>
         <input type={multiple ? "checkbox" : "radio"} name={multiple ? undefined : "marketing-lead-picker"} checked={selectedIds.includes(id)} onChange={(event) => onChange(multiple ? event.target.checked ? [...selectedIds, id] : selectedIds.filter((selectedId) => selectedId !== id) : [id])} />
-        <span>{lead.name}<small>{audienceTypes[lead.audience].label} Â· {lead.area || lead.city}</small></span>
+        <span>{lead.name}<small>{audienceTypes[lead.audience].label} · {lead.area || lead.city}</small></span>
       </label>;
     }) : <p>No matching beneficiaries. Add schools, colleges, apartment communities, or parent hubs from Discover first.</p>}</div>
   </div>;
