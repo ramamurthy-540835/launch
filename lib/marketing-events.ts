@@ -11,7 +11,9 @@ export type MarketingEventStatus = (typeof eventStatuses)[number];
 export type OutreachActivityType = (typeof activityTypes)[number];
 export type OutreachDirection = (typeof activityDirections)[number];
 export type OutreachOutcome = (typeof activityOutcomes)[number];
-export const institutionTypes = ["schools", "colleges"] as const;
+// The persisted field keeps its legacy institution name, but it now accepts
+// every beneficiary group that Marketing OS can discover.
+export const institutionTypes = ["schools", "colleges", "apartments", "parent_hubs"] as const;
 export type MarketingInstitutionType = (typeof institutionTypes)[number];
 
 export type MarketingEventInstitution = {

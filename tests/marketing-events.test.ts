@@ -56,15 +56,14 @@ describe("marketing events integration", () => {
     expect(event.institutions.map((institution) => institution.institutionType).sort()).toEqual(["colleges", "schools"]);
   });
 
-  it("rejects apartments and parent hubs as institution mappings", () => {
-    expect(audienceToInstitutionType("apartments")).toBeNull();
-    expect(audienceToInstitutionType("parent_hubs")).toBeNull();
-    const invalid = validateMarketingEventPayload({
+  it("accepts every supported beneficiary category", () => {
+    expect(audienceToInstitutionType("apartments")).toBe("apartments");
+    expect(audienceToInstitutionType("parent_hubs")).toBe("parent_hubs");
+    const valid = validateMarketingEventPayload({
       ...validEvent(),
-      institutions: [{ institutionId: "apt-1", institutionType: "apartments" }],
+      institutions: [{ institutionId: "apt-1", institutionType: "apartments" }, { institutionId: "parent-1", institutionType: "parent_hubs" }],
     });
-    expect(invalid.ok).toBe(false);
-    expect(invalid.ok ? [] : invalid.errors).toContain("Unsupported institution type for apt-1.");
+    expect(valid.ok).toBe(true);
   });
 
   it("deduplicates submitted mappings", () => {

@@ -177,7 +177,7 @@ SELECT
       ON location.location_id = mapping.institution_id
       AND location.location_type = mapping.institution_type
     WHERE mapping.event_id = events.event_id
-      AND mapping.institution_type IN ("schools", "colleges")
+      AND mapping.institution_type IN ("schools", "colleges", "apartments", "parent_hubs")
     ORDER BY location.name, mapping.institution_id
   ) AS institutions
 FROM ${table(eventsTable)} AS events
@@ -279,7 +279,7 @@ export async function verifyMarketingInstitutions(institutions: MarketingEventIn
     query: `
 SELECT location_id, location_type
 FROM ${table(locationsTable)}
-WHERE location_type IN ("schools", "colleges")
+WHERE location_type IN ("schools", "colleges", "apartments", "parent_hubs")
   AND location_id IN UNNEST(@institution_ids)`,
     params: { institution_ids: institutions.map((institution) => institution.institutionId) },
   });
