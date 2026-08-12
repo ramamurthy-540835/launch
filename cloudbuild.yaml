@@ -1,0 +1,48 @@
+substitutions:
+  _REGION: asia-south1
+  _SERVICE: lunchbox
+  _REPOSITORY: lunchbox
+  _GOOGLE_MAPS_BROWSER_SECRET: google-maps-browser-api-key
+
+steps:
+  - id: test
+    name: node:22
+    entrypoint: npm
+    args: ["ci"]
+  - id: verify
+    name: node:22
+    entrypoint: npm
+    args: ["test"]
+    waitFor: ["test"]
+  - id: build-app
+    name: node:22
+    entrypoint: npm
+    args: ["run", "build"]
+    waitFor: ["test"]
+  - id: build-image
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}", "."]
+    waitFor: ["verify", "build-app"]
+  - id: push-image
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}"]
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
+      - --project=${PROJECT_ID}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --update-env-vars=GCP_PROJECT_ID=${PROJECT_ID},DEFAULT_DAILY_CAPACITY=1500,FRANCHISE_NETWORK_TARGET=198,FRANCHISE_DAILY_STUDENT_CAPACITY=1500
+      - --update-secrets=GOOGLE_MAPS_BROWSER_API_KEY=${_GOOGLE_MAPS_BROWSER_SECRET}:latest
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

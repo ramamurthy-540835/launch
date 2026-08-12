@@ -261,3 +261,21 @@ For infrastructure-only staging before Firebase/Razorpay onboarding, set `REQUIR
 - Allergy acknowledgements and an emergency escalation process
 - Consent, encryption, audit logs, data minimization and retention for children’s data
 - Tests, monitoring, CI/CD and separate development/staging/production projects
+
+### Franchise territory planner and Cloud Build
+
+The franchise opportunity drawer uses the Firestore `franchise_locations` collection to present city → region → service-area selection. Each document can set `city`, `zoneId`/`regionId`, `zoneName`/`regionName`, `plannedFranchiseCount`, `franchiseCount`, `dailyStudentCapacity`, `studentCount`, `lat`, and `lng`. The network target is 198 franchises and the default capacity is 1,500 students per franchise per day. Run the guarded seed to publish the 198-slot Chennai plan:
+
+```bash
+CONFIRM_FRANCHISE_TERRITORY_SEED=yes GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID node scripts/seed-chennai-franchise-locations.mjs
+```
+
+The interactive map requires a browser/referrer-restricted Maps JavaScript API key stored in Secret Manager as `google-maps-browser-api-key`. Keep server-side Places credentials separate.
+
+Create an Artifact Registry Docker repository named `lunchbox`, grant the Cloud Build service account permission to push images, deploy Cloud Run, act as the runtime service account, and access the browser Maps secret, then submit:
+
+```bash
+gcloud builds submit --project YOUR_PROJECT_ID --config cloudbuild.yaml .
+```
+
+Override `_REGION`, `_SERVICE`, `_REPOSITORY`, or `_GOOGLE_MAPS_BROWSER_SECRET` with Cloud Build substitutions when the deployed names differ.
