@@ -8,6 +8,20 @@ export function isRazorpayConfigured() {
   return process.env.ENABLE_PAYMENTS !== "false" && Boolean(keyId && keySecret);
 }
 
+export function isFranchisePaymentLinksConfigured() {
+  const amount = Number(process.env.FRANCHISE_PAYMENT_AMOUNT_INR || 0);
+  return process.env.FRANCHISE_PAYMENT_ENABLED === "true" && isRazorpayConfigured() && Number.isInteger(amount) && amount > 0;
+}
+
+export async function createFranchisePaymentLink(input: { applicationId: string; name: string; email: string; phone: string; callbackUrl: string }) {
+  const amountInr = Number(process.env.FRANCHISE_PAYMENT_AMOUNT_INR || 0);
+  if (!isFranchisePaymentLinksConfigured()) throw new Error("Franchise payment links are not enabled.");
+  const response = await fetch("https://api.razorpay.com/v1/payment_links/", { method: "POST", headers: { Authorization: authorization(), "Content-Type": "application/json" }, body: JSON.stringify({ amount: amountInr * 100, currency: "INR", accept_partial: false, reference_id: `FR-${input.applicationId}`.slice(0, 40), description: "LunchBox franchise application payment", customer: { name: input.name, email: input.email, contact: `+91${input.phone.replace(/\D/g, "").slice(-10)}` }, notify: { sms: true, email: true }, reminder_enable: true, expire_by: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, callback_url: input.callbackUrl, callback_method: "get", notes: { application_id: input.applicationId, payment_type: "franchise_application" } }) });
+  const data = await response.json() as { id?: string; short_url?: string; status?: string; amount?: number; error?: { description?: string } };
+  if (!response.ok || !data.id || !data.short_url) throw new Error(data.error?.description || "Unable to create the secure payment link.");
+  return { id: data.id, shortUrl: data.short_url, status: data.status || "created", amount: data.amount || amountInr * 100 };
+}
+
 export function paymentCheckoutDetails(id: string, amountInr: number) {
   if (!keyId) throw new Error("Razorpay is not configured.");
   return { id, amount: Math.round(amountInr * 100), currency: "INR", keyId };

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useState } from "react";
+import Link from "next/link";
 import ParentAuth from "@/components/ParentAuth";
 import { firebaseAuth } from "@/lib/firebase-client";
 
@@ -102,6 +103,7 @@ export default function AdminKitchenManager() {
 
   return <section className="menu-section">
     <div className="section-heading"><div><span className="kicker">ADMIN</span><h1>Kitchen operations</h1></div><p>Manage launch capacity and order cutoffs. Access requires the Firebase <code>admin</code> custom claim.</p></div>
+    <nav className="ops-filter" aria-label="Admin sections"><Link href="/admin/registrations">Partner registrations</Link><Link href="/admin/franchise-applications">Franchise applications</Link></nav>
     <ParentAuth onChange={authenticationChanged} />
     {phone && <>
       <form className="checkout-modal" onSubmit={save}>

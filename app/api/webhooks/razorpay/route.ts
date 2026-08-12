@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { confirmCapturedPayment, updateRefundStatus } from "@/lib/firestore";
+import { FieldValue } from "@google-cloud/firestore";
+import { confirmCapturedPayment, firestoreClient, updateRefundStatus } from "@/lib/firestore";
 import { verifyWebhookSignature } from "@/lib/razorpay";
 
 export const runtime = "nodejs";
@@ -8,6 +9,7 @@ type RazorpayEvent = {
   event?: string;
   payload?: {
     payment?: { entity?: { id?: string; order_id?: string; amount?: number; currency?: string; status?: string } };
+    payment_link?: { entity?: { id?: string; status?: string; reference_id?: string; notes?: { application_id?: string } } };
     refund?: { entity?: { id?: string; status?: string } };
   };
 };
@@ -20,6 +22,13 @@ export async function POST(request: Request) {
   }
 
   const event = JSON.parse(rawBody) as RazorpayEvent;
+  if (event.event === "payment_link.paid") {
+    const link = event.payload?.payment_link?.entity;
+    const applicationId = link?.notes?.application_id;
+    if (!link?.id || !applicationId || link.status !== "paid") return NextResponse.json({ error: "Invalid payment-link payload." }, { status: 400 });
+    await firestoreClient().collection("franchise_applications").doc(applicationId).set({ paymentStatus: "paid", paymentLink: { id: link.id, status: "paid", paidAt: FieldValue.serverTimestamp() }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return NextResponse.json({ accepted: true });
+  }
   if (["refund.created", "refund.processed", "refund.failed"].includes(event.event || "")) {
     const refund = event.payload?.refund?.entity;
     if (!refund?.id || !refund.status) return NextResponse.json({ error: "Invalid refund payload." }, { status: 400 });
