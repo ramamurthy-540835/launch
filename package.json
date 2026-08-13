@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "discover:mandi": "node scripts/discover-mandi-varieties.mjs",
+    "sync:schools": "node scripts/sync-school-directory.mjs",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run"
   },

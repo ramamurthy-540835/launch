@@ -49,6 +49,130 @@ The production build generates a versioned Serwist service worker at `public/sw.
 
 Serviceability follows city → onboarded school → grade. The current school names are explicitly labelled pilot placeholders in `lib/meals.ts`; replace them with approved school records before staging. Orders for unknown or cross-city schools are rejected by the server.
 
+## Private School Location Agent
+
+The School Registration page at `/schools/register` uses a server-only location pipeline:
+
+```text
+City → Zone → 3-character school prefix
+  → Firestore schools directory
+  → 14-day Firestore query cache
+  → Google Places Text Search
+  → SerpAPI Google Maps fallback
+  → normalize / private-school filter / zone resolution / rank / deduplicate
+  → Firestore operational master
+  → deferred BigQuery analytics
+```
+
+The centralized territory model in `lib/school-locator/territories.ts` defines exactly four cities and five zones per city. The UI waits 400 ms, cancels stale requests, caps results at ten, supports keyboard selection, can retry across the full city, and provides an unverified manual-entry fallback. Selecting a result auto-fills the normalized address, locality, zone, city, state, pincode, coordinates and provider place ID.
+
+External providers are called only by Cloud Run. Never expose `GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACES_API_KEY`, `SERPAPI_API_KEY`, or `SERP_API_KEY` to browser code. An interactive frontend map requires a separate HTTP-referrer-restricted browser key; the registration page currently uses a keyless Google Maps destination link.
+
+Supported server environment variables:
+
+```text
+GCP_PROJECT_ID=chennaifood
+FIREBASE_PROJECT_ID=chennaifood
+FIRESTORE_DATABASE_ID=(default)
+GOOGLE_MAPS_API_KEY=<Secret Manager>
+GOOGLE_PLACES_API_KEY=<optional separate Secret Manager key>
+SERPAPI_API_KEY=<Secret Manager>
+SCHOOL_DIRECTORY_BIGQUERY_DATASET=school_directory
+BIGQUERY_LOCATION=asia-south1
+SCHOOL_DISCOVERY_TASK_SECRET=<Secret Manager>
+```
+
+`GOOGLE_PLACES_API_KEY` takes precedence over `GOOGLE_MAPS_API_KEY`. `SERP_API_KEY` remains supported as a backwards-compatible alias for `SERPAPI_API_KEY`.
+
+Operational Firestore collections:
+
+- `schools`: normalized school master and bounded search keywords.
+- `school_search_cache`: 14-day city/zone/query cache.
+- `school_onboarding_requests`: selected-school registration requests.
+- `rate_limits`: server-enforced request buckets; enable TTL on `expires_at`.
+
+Deploy the single required school autocomplete composite index and the deny-all browser rules with:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes --project chennaifood
+```
+
+Create the analytics dataset, tables and future-ready views by replacing `YOUR_PROJECT_ID` in `infrastructure/school-directory.sql` with `chennaifood`, then running:
+
+```bash
+bq query --project_id=chennaifood --location=asia-south1 --use_legacy_sql=false < infrastructure/school-directory.sql
+```
+
+The schema contains `school_master`, `school_search_events`, `school_registration_events`, and `school_provider_usage`, plus city, zone, popularity, registration, student-strength and potential-franchise views. Analytics writes run after the user response and failures never block autocomplete or registration.
+
+Optional directory preload is explicit and never runs at application startup:
+
+```bash
+LUNCHBOX_BASE_URL=http://localhost:3000 npm run sync:schools -- --city chennai --zone west
+LUNCHBOX_BASE_URL=http://localhost:3000 npm run sync:schools -- --city coimbatore --max-localities 2
+```
+
+The preload command reads `SCHOOL_DISCOVERY_TASK_SECRET` from the environment, loads territory data from the application API, and synchronizes one zone at a time. Each locality can call multiple billable provider searches, so start with `--max-localities 1` or `2` and monitor quota before a full-city run.
+
+School locator APIs:
+
+- `GET /api/location/cities`
+- `GET /api/location/zones?city=CHENNAI`
+- `GET /api/schools/search?city=CHENNAI&zone=CHENNAI_WEST&q=mah&limit=10`
+- `GET /api/schools/{schoolId}`
+- `POST /api/schools/manual`
+- `POST /api/school-registration`
+
+## Office, Company and College Registration
+
+The partner registration landing page at `/register` links to School Registration, a combined `/register/office-company` flow, and `/register/college`. Office represents a physical workplace while Company represents the organization; the shared page lets users choose either without collapsing their master records. College represents a higher-education campus.
+
+Both new flows reuse the existing four-city/twenty-zone territory model and server-side provider transport:
+
+```text
+City → Zone → 3-character entity prefix
+  → Firestore offices/companies/colleges master
+  → 14-day entity_search_cache
+  → Google Places Text Search
+  → SerpAPI Google Maps fallback
+  → profile filter / normalize / resolve zone / rank / deduplicate
+  → Firestore operational master
+  → deferred BigQuery analytics
+```
+
+`lib/entity-locator/profiles.ts` defines Office, Company, and College query templates, preferred categories, and conservative exclusions. They share the provider, repository, search service, autocomplete, timeout, request-deduplication, rate-limiting, and analytics paths.
+
+Operational Firestore collections added:
+
+- `offices`: physical office master; nullable `company_id` supports company-to-many-office relationships.
+- `companies`: organization master; nullable `primary_office_id` is future-ready.
+- `colleges`: normalized higher-education campus master.
+- `entity_search_cache`: entity-type/city/zone/query cache with a 14-day expiry.
+- `office_registrations`, `company_registrations`, and `college_registrations`: onboarding transactions kept separate from master records.
+
+Entity APIs:
+
+- `GET /api/entities/search?type=office&city=CHENNAI&zone=CHENNAI_WEST&q=dlf&limit=10`
+- `GET /api/entities/search?type=company&city=CHENNAI&zone=CHENNAI_WEST&q=tat&limit=10`
+- `GET /api/entities/search?type=college&city=CHENNAI&zone=CHENNAI_WEST&q=eng&limit=10`
+- `GET /api/offices/{id}` and `POST /api/offices/manual`
+- `GET /api/companies/{id}` and `POST /api/companies/manual`
+- `GET /api/colleges/{id}` and `POST /api/colleges/manual`
+- `POST /api/office-registration`, `POST /api/company-registration`, and `POST /api/college-registration`
+
+The existing server-only `GOOGLE_PLACES_API_KEY`/`GOOGLE_MAPS_API_KEY` and `SERPAPI_API_KEY`/`SERP_API_KEY` variables are reused; no new key is required. Run `infrastructure/school-directory.sql` again to add the office/company analytics tables and views. Deploy the two new Firestore composite indexes in `infrastructure/firestore.indexes.json`, and configure Firestore TTL on `entity_search_cache.expires_at`.
+
+## Partner registration administration
+
+`/admin/registrations` is a Firebase-admin-protected acquisition pipeline spanning School, Office, Company, and College registrations. It provides type/status/city/zone/text filters, duplicate indicators, CSV export, registration details, assigned owner, follow-up date, internal notes, and these workflow states:
+
+```text
+Received → Under Review → Contacted → Qualified → Pilot Scheduled → Active
+                                                               ↘ Rejected
+```
+
+Updates are written to the original Firestore registration document, append a workflow-history entry, and create an `audit_logs` record. Contact details are returned only after the server validates the Firebase `admin` custom claim; unauthenticated API requests receive HTTP 403.
+
 ## Run locally
 
 ```bash
@@ -59,9 +183,10 @@ npm run dev
 
 Open `http://localhost:3000`. Leave the placeholder GCP variables unset to use demo checkout.
 
+Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/api/health`; readiness can use `/api/health?ready=1`, which also checks Firestore access. Rate-limit documents in `rate_limits` should have Firestore TTL enabled on `expires_at`.
 ### School and apartment marketing map
 
-Open `/marketing`, search for Chennai schools, choose **Use this school**, and select a radius to find nearby apartment communities. Configure a browser-restricted `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` for the map and a separate server-side `GOOGLE_MAPS_API_KEY` for Places searches. Enable Maps JavaScript API and Places API (New), restrict each key to its intended API and caller, and inject production secrets through Secret Manager.
+Open `/marketing`, search for Chennai schools, choose **Use this school**, and select a radius to find nearby apartment communities. Configure a browser-restricted `GOOGLE_MAPS_BROWSER_API_KEY` for the map and a separate server-side `GOOGLE_MAPS_API_KEY` for Places searches. Enable Maps JavaScript API and Places API (New), restrict each key to its intended API and caller, and inject production secrets through Secret Manager.
 
 Discovery runs and saved locations are written to the `marketing_discovery_runs` and `marketing_locations` BigQuery tables when GCP is configured. The tool stores public community/place records only; it does not identify individual parents living in an apartment.
 
@@ -69,19 +194,18 @@ Discovery runs and saved locations are written to the `marketing_discovery_runs`
 
 The privacy-safe Python research module in [`research/`](research/README.md) produces deduplicated school-to-apartment proximity datasets, locality summaries, Excel exports and source audit logs. It stores completed outputs locally and can automatically copy the same files to timestamped folders under `gs://chennaifood/marketing/research/runs/`. It supports approved school CSV input, configurable Chennai localities/radii and a rate-limited OpenStreetMap/Overpass provider. It does not collect resident- or child-level personal data.
 
-Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/api/health`; readiness can use `/api/health?ready=1`, which also checks Firestore access. Rate-limit documents in `rate_limits` should have Firestore TTL enabled on `expires_at`.
-
 ## Configure Google Cloud
 
 1. Create a private bucket in `asia-south1` and enable uniform bucket-level access.
 2. Replace `YOUR_PROJECT_ID` in `infrastructure/bigquery.sql`, then run it in BigQuery.
-3. Replace `YOUR_PROJECT_ID` in `infrastructure/seed.sql` and run it to load the pilot cities, kitchens, schools and delivery routes. The `MERGE` statements are safe to rerun. The capacity and cutoff values are placeholders and must be approved before launch.
-4. Create a Firestore Native database in `asia-south1`; use the default database or set `FIRESTORE_DATABASE_ID`.
-5. Enable Firebase Phone authentication, register the production domain, configure permitted SMS regions, and create a Firebase Web app.
-6. Set the four `NEXT_PUBLIC_FIREBASE_*` Web app values plus `GCP_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ORDERS_TABLE`, `GCS_BUCKET`, `DEFAULT_DAILY_CAPACITY`, and `ORDER_CUTOFF_IST` on Cloud Run.
-7. Give the Cloud Run service identity Firestore user access plus the least-privilege BigQuery and Storage roles listed above. Production orders require a valid Firebase ID token whenever `GCP_PROJECT_ID` is configured.
-8. Deploy `infrastructure/firestore.rules`. They intentionally deny direct browser access because parent-owned student profiles and orders are accessed only through token-verified server APIs.
-9. Deploy from the project directory:
+3. Replace `YOUR_PROJECT_ID` in `infrastructure/school-directory.sql`, then run it to create the school analytics layer.
+4. Replace `YOUR_PROJECT_ID` in `infrastructure/seed.sql` and run it to load the pilot cities, kitchens, schools and delivery routes. The `MERGE` statements are safe to rerun. The capacity and cutoff values are placeholders and must be approved before launch.
+5. Create a Firestore Native database in `asia-south1`; use the default database or set `FIRESTORE_DATABASE_ID`.
+6. Enable Firebase Phone authentication, register the production domain, configure permitted SMS regions, and create a Firebase Web app.
+7. Set the four `NEXT_PUBLIC_FIREBASE_*` Web app values plus `GCP_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ORDERS_TABLE`, `GCS_BUCKET`, `DEFAULT_DAILY_CAPACITY`, and `ORDER_CUTOFF_IST` on Cloud Run.
+8. Give the Cloud Run service identity Firestore user access plus the least-privilege BigQuery and Storage roles listed above. Production orders require a valid Firebase ID token whenever `GCP_PROJECT_ID` is configured.
+9. Deploy `infrastructure/firestore.rules` and `infrastructure/firestore.indexes.json`. They intentionally deny direct browser access because all school and parent data is accessed through server APIs.
+10. Deploy from the project directory:
 
 ```bash
 gcloud run deploy lunchbox --source . --region asia-south1 --allow-unauthenticated
@@ -151,3 +275,37 @@ Marketing leads, scheduled events and outreach activities are stored in Firestor
 - Allergy acknowledgements and an emergency escalation process
 - Consent, encryption, audit logs, data minimization and retention for children’s data
 - Tests, monitoring, CI/CD and separate development/staging/production projects
+
+### Franchise territory planner and Cloud Build
+
+The franchise opportunity drawer uses the Firestore `franchise_locations` collection to present city → region → service-area selection. Each document can set `city`, `zoneId`/`regionId`, `zoneName`/`regionName`, `plannedFranchiseCount`, `franchiseCount`, `dailyStudentCapacity`, `studentCount`, `lat`, and `lng`. The network target is 198 franchises and the default capacity is 1,500 students per franchise per day. Run the guarded seed to publish the 198-slot Chennai plan:
+
+```bash
+CONFIRM_FRANCHISE_TERRITORY_SEED=yes GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID node scripts/seed-chennai-franchise-locations.mjs
+```
+
+The interactive map requires a browser/referrer-restricted Maps JavaScript API key stored in Secret Manager as `google-maps-browser-api-key`. Keep server-side Places credentials separate.
+
+Create an Artifact Registry Docker repository named `lunchbox`, grant the Cloud Build service account permission to push images, deploy Cloud Run, act as the runtime service account, and access the browser Maps secret, then submit:
+
+```bash
+gcloud builds submit --project YOUR_PROJECT_ID --config cloudbuild.yaml .
+```
+
+Override `_REGION`, `_SERVICE`, `_REPOSITORY`, or `_GOOGLE_MAPS_BROWSER_SECRET` with Cloud Build substitutions when the deployed names differ.
+
+### Franchise application payments
+
+Franchise applications must be linked to a published Firestore territory and moved by an administrator to `APPROVED_FOR_PAYMENT` before the applicant can create a Razorpay payment link. Set `FRANCHISE_PAYMENT_ENABLED=true` only after Razorpay activation, the refund policy, tax treatment, and territory availability have been verified. The public flow collects the server-controlled ₹5,000 application fee only; the indicative ₹5,00,000 investment is never charged through this checkout.
+
+Configure the existing `/api/webhooks/razorpay` endpoint for `payment_link.paid`, `payment_link.expired`, and `payment_link.cancelled` in addition to the parent-order and refund events listed above. Payment state changes only after the signed webhook matches the stored application, payment-link ID, currency, and exact fee.
+
+Replace `YOUR_PROJECT_ID` and run `infrastructure/franchise-payments.sql` before enabling the feature. The application remains authoritative in Firestore; the BigQuery tables provide payment creation, webhook audit, reconciliation, and daily collection reporting. Use `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `FRANCHISE_PAYMENT_ENABLED`, `GCP_PROJECT_ID`, and `BIGQUERY_DATASET`; the amount is intentionally not configurable through an environment variable.
+
+### Agmarknet mandi prices
+
+The server reads the official data.gov.in Agmarknet resource `9ef84268-d588-465a-a308-a864a43d0070`, preserves each report date, and converts quoted ₹/quintal values to ₹/kg. Configure `DATA_GOV_API_KEY` and a separate `PRICE_REFRESH_TOKEN`, replace `YOUR_PROJECT_ID`, and run `infrastructure/market-prices.sql`.
+
+Commodity mappings remain disabled until their exact market/commodity/variety/grade strings and inventory item IDs have been verified. Discover current strings with `DATA_GOV_API_KEY=... npm run discover:mandi -- Maharashtra Sangli` (or the relevant Tamil Nadu market), then update `lib/commodityMapping.ts`. The refresh endpoint deliberately writes no prices while mappings are placeholders.
+
+Schedule `POST /api/inventory/market-prices/refresh` after market reporting closes, passing `X-Refresh-Token`. Dashboards should read `market_price_usable`, display `arrival_date`, and show “Awaiting prices” when a price is missing or more than seven days old.

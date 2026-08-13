@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_discovery_run
 )
 PARTITION BY DATE(searched_at)
 CLUSTER BY school_place_id;
-
 ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders`
 ADD COLUMN IF NOT EXISTS parent_uid STRING;
 
