@@ -27,16 +27,16 @@ const batch = db.batch();
 for (const [index, [id, name, zoneId, zoneName, lat, lng]] of locations.entries()) {
   const reference = db.collection("franchise_locations").doc(id);
   batch.set(reference, {
-    name, zoneId, zoneName, lat, lng,
-    plannedFranchiseCount: index < 3 ? 14 : 13,
-    dailyStudentCapacity: 1500,
-    status: "available",
-    franchiseCount: 0,
-    activeDriverCount: 0,
+    id, name, zone_id: zoneId, zone_name: zoneName, lat, lng,
+    planned_franchise_count: index < 3 ? 14 : 13,
+    allocated_franchise_count: 0,
+    available_slots: index < 3 ? 14 : 13,
+    daily_student_capacity: 1500,
+    status: "AVAILABLE",
     city: "Chennai",
     dataSource: "Chennai locality centroid",
-    updatedAt: FieldValue.serverTimestamp(),
-    createdAt: FieldValue.serverTimestamp(),
+    updated_at: FieldValue.serverTimestamp(),
+    created_at: FieldValue.serverTimestamp(),
   }, { merge: true });
 }
 await batch.commit();

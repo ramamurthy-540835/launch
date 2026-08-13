@@ -33,13 +33,14 @@ export function buildFranchiseOpportunityNetwork(records: Array<Record<string, u
     const rawCity = cleanText(data.city) || "Chennai";
     const cityName = rawCity === "Tiruchirappalli" ? "Trichy" : rawCity;
     const cityId = slug(cityName);
-    const zoneId = slug(cleanText(data.regionId) || cleanText(data.zoneId) || "central");
-    const zoneName = cleanText(data.regionName) || cleanText(data.zoneName) || (zoneMeta[zoneId] ? zoneMeta[zoneId].name + " " + cityName : cityName);
-    const rawStatus = data.status === "completed" || data.status === "coming_soon" ? data.status : "available";
-    const franchiseCount = count(data.activeFranchiseCount ?? data.franchiseCount);
-    const plannedFranchiseCount = Math.max(franchiseCount, count(data.plannedFranchiseCount ?? data.franchiseSlots, 1));
-    const availableFranchiseCount = rawStatus === "available" ? Math.max(0, plannedFranchiseCount - franchiseCount) : 0;
-    const dailyStudentCapacity = count(data.dailyStudentCapacity, FRANCHISE_DAILY_STUDENT_CAPACITY) || FRANCHISE_DAILY_STUDENT_CAPACITY;
+    const zoneId = slug(cleanText(data.zone_id) || cleanText(data.regionId) || cleanText(data.zoneId) || "central");
+    const zoneName = cleanText(data.zone_name) || cleanText(data.regionName) || cleanText(data.zoneName) || (zoneMeta[zoneId] ? zoneMeta[zoneId].name + " " + cityName : cityName);
+    const canonicalStatus = cleanText(data.status).toUpperCase();
+    const rawStatus = canonicalStatus === "INACTIVE" ? "coming_soon" : canonicalStatus === "FULL" ? "completed" : data.status === "completed" || data.status === "coming_soon" ? data.status : "available";
+    const franchiseCount = count(data.allocated_franchise_count ?? data.activeFranchiseCount ?? data.franchiseCount);
+    const plannedFranchiseCount = Math.max(franchiseCount, count(data.planned_franchise_count ?? data.plannedFranchiseCount ?? data.franchiseSlots, 1));
+    const availableFranchiseCount = rawStatus === "available" ? count(data.available_slots, Math.max(0, plannedFranchiseCount - franchiseCount)) : 0;
+    const dailyStudentCapacity = count(data.daily_student_capacity ?? data.dailyStudentCapacity, FRANCHISE_DAILY_STUDENT_CAPACITY) || FRANCHISE_DAILY_STUDENT_CAPACITY;
     const currentStudentCount = count(data.currentStudentCount ?? data.studentCount);
     return {
       id: data.id, name: cleanText(data.name) || data.id, cityId, cityName, zoneId, zoneName,
@@ -47,7 +48,7 @@ export function buildFranchiseOpportunityNetwork(records: Array<Record<string, u
       franchiseCount, plannedFranchiseCount, availableFranchiseCount, activeDriverCount: count(data.activeDriverCount),
       dailyStudentCapacity, totalDailyStudentCapacity: plannedFranchiseCount * dailyStudentCapacity, currentStudentCount,
       remainingStudentCapacity: Math.max(0, plannedFranchiseCount * dailyStudentCapacity - currentStudentCount),
-      lat: cleanNumber(data.lat), lng: cleanNumber(data.lng),
+      lat: cleanNumber(data.lat ?? data.latitude), lng: cleanNumber(data.lng ?? data.longitude),
     } satisfies FranchiseOpportunityLocation;
   });
   const cities = [...new Map(locations.map((location) => [location.cityId, { id: location.cityId, name: location.cityName }])).values()]
