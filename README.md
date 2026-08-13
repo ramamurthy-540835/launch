@@ -279,3 +279,19 @@ gcloud builds submit --project YOUR_PROJECT_ID --config cloudbuild.yaml .
 ```
 
 Override `_REGION`, `_SERVICE`, `_REPOSITORY`, or `_GOOGLE_MAPS_BROWSER_SECRET` with Cloud Build substitutions when the deployed names differ.
+
+### Franchise application payments
+
+Franchise applications must be linked to a published Firestore territory and moved by an administrator to `APPROVED_FOR_PAYMENT` before the applicant can create a Razorpay payment link. Set `FRANCHISE_PAYMENT_ENABLED=true` only after Razorpay activation, the refund policy, tax treatment, and territory availability have been verified. The public flow collects the server-controlled ₹5,000 application fee only; the indicative ₹5,00,000 investment is never charged through this checkout.
+
+Configure the existing `/api/webhooks/razorpay` endpoint for `payment_link.paid`, `payment_link.expired`, and `payment_link.cancelled` in addition to the parent-order and refund events listed above. Payment state changes only after the signed webhook matches the stored application, payment-link ID, currency, and exact fee.
+
+Replace `YOUR_PROJECT_ID` and run `infrastructure/franchise-payments.sql` before enabling the feature. The application remains authoritative in Firestore; the BigQuery tables provide payment creation, webhook audit, reconciliation, and daily collection reporting. Use `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `FRANCHISE_PAYMENT_ENABLED`, `GCP_PROJECT_ID`, and `BIGQUERY_DATASET`; the amount is intentionally not configurable through an environment variable.
+
+### Agmarknet mandi prices
+
+The server reads the official data.gov.in Agmarknet resource `9ef84268-d588-465a-a308-a864a43d0070`, preserves each report date, and converts quoted ₹/quintal values to ₹/kg. Configure `DATA_GOV_API_KEY` and a separate `PRICE_REFRESH_TOKEN`, replace `YOUR_PROJECT_ID`, and run `infrastructure/market-prices.sql`.
+
+Commodity mappings remain disabled until their exact market/commodity/variety/grade strings and inventory item IDs have been verified. Discover current strings with `DATA_GOV_API_KEY=... npm run discover:mandi -- Maharashtra Sangli` (or the relevant Tamil Nadu market), then update `lib/commodityMapping.ts`. The refresh endpoint deliberately writes no prices while mappings are placeholders.
+
+Schedule `POST /api/inventory/market-prices/refresh` after market reporting closes, passing `X-Refresh-Token`. Dashboards should read `market_price_usable`, display `arrival_date`, and show “Awaiting prices” when a price is missing or more than seven days old.
