@@ -9,6 +9,18 @@ type Entity = Record<string, unknown>;
 type RazorpayEvent = { event?: string; payload?: { payment?: { entity?: Entity }; payment_link?: { entity?: Entity }; refund?: { entity?: Entity } } };
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 
+export async function GET() {
+  return NextResponse.json({
+    status: "ok",
+    endpoint: "Razorpay webhook",
+    method: "POST",
+    signatureRequired: true,
+    message: "This endpoint is ready to receive signed Razorpay webhook events.",
+  }, {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 async function processFranchiseEvent(eventName: string, event: RazorpayEvent) {
   const link = event.payload?.payment_link?.entity; const payment = event.payload?.payment?.entity;
   const notes = link?.notes as Record<string, unknown> | undefined;

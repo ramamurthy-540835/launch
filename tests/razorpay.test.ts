@@ -28,4 +28,16 @@ describe("Razorpay signature verification", () => {
     expect(verifyWebhookSignature(body, signature)).toBe(true);
     expect(verifyWebhookSignature(`${body}\n`, signature)).toBe(false);
   });
+
+  it("provides a safe browser-readable webhook health response", async () => {
+    const { GET } = await import("@/app/api/webhooks/razorpay/route");
+    const response = await GET();
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "ok",
+      endpoint: "Razorpay webhook",
+      method: "POST",
+      signatureRequired: true,
+    });
+  });
 });
