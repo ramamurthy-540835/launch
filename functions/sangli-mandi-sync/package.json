@@ -1,0 +1,11 @@
+{
+  "name": "sangli-mandi-sync",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.1.1",
+    "@google-cloud/functions-framework": "^4.0.0"
+  }
+}
