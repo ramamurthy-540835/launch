@@ -68,6 +68,63 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_discovery_run
 )
 PARTITION BY DATE(searched_at)
 CLUSTER BY school_place_id;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_events` (
+  event_id STRING NOT NULL,
+  title STRING NOT NULL,
+  event_type STRING NOT NULL,
+  city STRING NOT NULL,
+  zone STRING,
+  area STRING,
+  linked_lead_ids ARRAY<STRING>,
+  scheduled_date DATE NOT NULL,
+  scheduled_time_start STRING NOT NULL,
+  scheduled_time_end STRING NOT NULL,
+  venue STRING NOT NULL,
+  owner_name STRING NOT NULL,
+  status STRING NOT NULL,
+  expected_attendance INT64,
+  actual_attendance INT64,
+  leads_generated_count INT64,
+  notes STRING,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY scheduled_date
+CLUSTER BY city, status, event_type;
+
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_event_institutions` (
+  event_id STRING NOT NULL,
+  institution_id STRING NOT NULL,
+  institution_type STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY event_id, institution_type, institution_id;
+
+MERGE `YOUR_PROJECT_ID.school_lunch.marketing_event_institutions` AS target
+USING (
+  SELECT DISTINCT
+    events.event_id,
+    locations.location_id AS institution_id,
+    locations.location_type AS institution_type,
+    CURRENT_TIMESTAMP() AS migrated_at
+  FROM `YOUR_PROJECT_ID.school_lunch.marketing_events` AS events,
+  UNNEST(IFNULL(events.linked_lead_ids, [])) AS linked_lead_id
+  JOIN `YOUR_PROJECT_ID.school_lunch.marketing_locations` AS locations
+    ON locations.location_id = linked_lead_id
+  WHERE locations.location_type IN ("schools", "colleges")
+) AS source
+ON target.event_id = source.event_id
+  AND target.institution_id = source.institution_id
+WHEN NOT MATCHED THEN
+  INSERT (event_id, institution_id, institution_type, created_at, updated_at)
+  VALUES (source.event_id, source.institution_id, source.institution_type, source.migrated_at, source.migrated_at);
+
+-- After verifying marketing_event_institutions in production, linked_lead_ids
+-- can be removed from marketing_events in a later migration.
+
 ALTER TABLE `YOUR_PROJECT_ID.school_lunch.orders`
 ADD COLUMN IF NOT EXISTS parent_uid STRING;
 
@@ -266,3 +323,4 @@ SELECT
   SUM(free_meals) >= 25 AS cap_reached
 FROM `YOUR_PROJECT_ID.school_lunch.free_meal_summary`
 GROUP BY kitchen_id, service_date;
+
