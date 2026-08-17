@@ -100,6 +100,11 @@ export default function MarketingPage() {
   const [responseAware, setResponseAware] = useState(true);
   const [campaignImage, setCampaignImage] = useState("auto");
   const [customImageUrl, setCustomImageUrl] = useState("");
+  const [openClawMessage, setOpenClawMessage] = useState("");
+  const [openClawToken, setOpenClawToken] = useState("");
+  const [openClawMedia, setOpenClawMedia] = useState<File | null>(null);
+  const [openClawSending, setOpenClawSending] = useState(false);
+  const [openClawResult, setOpenClawResult] = useState("");
 
   useEffect(() => {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -124,6 +129,32 @@ export default function MarketingPage() {
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || "Shared workspace request failed.");
     return body;
+  }
+
+  async function sendOpenClawBroadcast() {
+    if (!openClawMessage.trim()) { setOpenClawResult("Enter the WhatsApp message first."); return; }
+    if (!openClawToken.trim()) { setOpenClawResult("Enter the outreach sending key first."); return; }
+    setOpenClawSending(true); setOpenClawResult("");
+    try {
+      let mediaUrl = "";
+      if (openClawMedia) {
+        const form = new FormData(); form.set("media", openClawMedia);
+        const upload = await fetch("/api/marketing/openclaw/upload", { method: "POST", headers: { "x-outreach-token": openClawToken }, body: form });
+        const uploadBody = await upload.json();
+        if (!upload.ok) throw new Error(uploadBody.error || "Media upload failed.");
+        mediaUrl = uploadBody.mediaUrl;
+      }
+      const response = await fetch("/api/marketing/openclaw", {
+        method: "POST", headers: { "Content-Type": "application/json", "x-outreach-token": openClawToken },
+        body: JSON.stringify({ sendToAll: true, messageText: openClawMessage, mediaUrl, campaignName }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Message could not be queued.");
+      setOpenClawResult(`${body.queued} message${body.queued === 1 ? "" : "s"} queued for OpenClaw delivery.`);
+      setOpenClawMessage(""); setOpenClawMedia(null);
+    } catch (sendError) {
+      setOpenClawResult(sendError instanceof Error ? sendError.message : "Message could not be queued.");
+    } finally { setOpenClawSending(false); }
   }
 
   async function loadWorkspace() {
@@ -351,6 +382,14 @@ export default function MarketingPage() {
 
       {tab === "outreach" && <section className={styles.panel}>
         <div className={styles.panelHead}><div><span>OUTREACH KIT</span><h2>Start a relevant conversation.</h2></div><p>Adapt these drafts before sending. Confirm consent and use real, verifiable LunchBox claims.</p></div>
+        <div className={outreachStyles.openClawComposer}>
+          <div><span>OPENCLAW WHATSAPP</span><h3>Send to all consented contacts</h3><p>One message job is created for each unique, consented WhatsApp number in the communication table.</p></div>
+          <label><span>Message</span><textarea value={openClawMessage} onChange={(event) => setOpenClawMessage(event.target.value)} placeholder="Write the WhatsApp message to send" maxLength={4096} /></label>
+          <label><span>Optional video or image</span><input type="file" accept="video/*,image/*" onChange={(event) => setOpenClawMedia(event.target.files?.[0] || null)} />{openClawMedia && <small>{openClawMedia.name}</small>}</label>
+          <label><span>Outreach sending key</span><input type="password" value={openClawToken} onChange={(event) => setOpenClawToken(event.target.value)} placeholder="Configured Cloud Run key" autoComplete="off" /></label>
+          <button type="button" onClick={() => void sendOpenClawBroadcast()} disabled={openClawSending}>{openClawSending ? "Queueing…" : "Send through OpenClaw"}</button>
+          {openClawResult && <p role="status">{openClawResult}</p>}
+        </div>
         <div className={outreachStyles.recipientSection}>
           <div><h3>Automated campaign recipients</h3><p>Add contact details and record explicit consent for each channel before preparing a campaign.</p></div>
           {outreachRecipients.length ? <div className={outreachStyles.recipientList}>{outreachRecipients.map((lead) => {

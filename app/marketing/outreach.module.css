@@ -4,6 +4,18 @@
   padding-top: 19px;
 }
 
+.openClawComposer { background: #eef5ef; border: 1px solid #bfd4c3; border-radius: 10px; display: grid; gap: 11px; margin-top: 18px; padding: 15px; }
+.openClawComposer > div span, .openClawComposer label > span { color: #536b5a; display: block; font-size: 9px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; }
+.openClawComposer h3 { font-size: 16px; margin: 4px 0; }
+.openClawComposer p { color: #52635a; font-size: 11px; margin: 0; }
+.openClawComposer label { display: grid; gap: 5px; }
+.openClawComposer textarea, .openClawComposer input[type="password"] { background: #fff; border: 1px solid #bfcfc3; border-radius: 7px; color: #17382d; font: inherit; padding: 9px; width: 100%; }
+.openClawComposer textarea { min-height: 82px; resize: vertical; }
+.openClawComposer input[type="file"] { font-size: 11px; }
+.openClawComposer small { color: #52635a; font-size: 10px; }
+.openClawComposer button { background: #173e30; border: 0; border-radius: 8px; color: #fff; cursor: pointer; font-weight: 700; justify-self: start; padding: 10px 14px; }
+.openClawComposer button:disabled { cursor: wait; opacity: .6; }
+
 .pipelineFields { display: grid; gap: 7px; grid-template-columns: 1fr 1fr; }
 .pipelineFields label { display: grid; gap: 4px; }
 .pipelineFields label:first-child { grid-column: 1 / -1; }
