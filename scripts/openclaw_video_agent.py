@@ -128,7 +128,7 @@ def download_and_upload(storage_client: storage.Client, media_uri: str, director
 def send_openclaw(number: str, message: str, clip: Path) -> str:
     """Send video and promotional copy separately so WhatsApp does not truncate a media caption."""
     media_result = subprocess.run(
-        [OPENCLAW, "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--media", str(clip), "--message", "🎬 A special LunchBox video for you"],
+        [OPENCLAW, "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--media", str(clip)],
         check=False, capture_output=True, text=True,
     )
     media_id = re.search(r"Message ID:\s*([A-Za-z0-9]+)", media_result.stdout + media_result.stderr)
