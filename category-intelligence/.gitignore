@@ -1,0 +1,20 @@
+.env.local
+.env
+*.env
+.aider*
+
+# Node/Next artifacts
+node_modules/
+.next/
+out/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local temp artifacts
+_html/
+.codex/
+.logs/
+logs/
+*.bak
