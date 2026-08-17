@@ -4,10 +4,6 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const token = process.env.OUTREACH_WRITE_TOKEN;
-  if (!token || request.headers.get("x-outreach-token") !== token) {
-    return NextResponse.json({ error: "Outreach sending is not configured." }, { status: 403 });
-  }
   try {
     const form = await request.formData();
     const file = form.get("media");

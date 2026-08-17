@@ -101,7 +101,6 @@ export default function MarketingPage() {
   const [campaignImage, setCampaignImage] = useState("auto");
   const [customImageUrl, setCustomImageUrl] = useState("");
   const [openClawMessage, setOpenClawMessage] = useState("");
-  const [openClawToken, setOpenClawToken] = useState("");
   const [openClawMedia, setOpenClawMedia] = useState<File | null>(null);
   const [openClawSending, setOpenClawSending] = useState(false);
   const [openClawResult, setOpenClawResult] = useState("");
@@ -133,19 +132,18 @@ export default function MarketingPage() {
 
   async function sendOpenClawBroadcast() {
     if (!openClawMessage.trim() && !openClawMedia) { setOpenClawResult("Attach a video or image, or enter a text-only message."); return; }
-    if (!openClawToken.trim()) { setOpenClawResult("Enter the outreach sending key first."); return; }
     setOpenClawSending(true); setOpenClawResult("");
     try {
       let mediaUrl = "";
       if (openClawMedia) {
         const form = new FormData(); form.set("media", openClawMedia);
-        const upload = await fetch("/api/marketing/openclaw/upload", { method: "POST", headers: { "x-outreach-token": openClawToken }, body: form });
+        const upload = await fetch("/api/marketing/openclaw/upload", { method: "POST", body: form });
         const uploadBody = await upload.json();
         if (!upload.ok) throw new Error(uploadBody.error || "Media upload failed.");
         mediaUrl = uploadBody.mediaUrl;
       }
       const response = await fetch("/api/marketing/openclaw", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-outreach-token": openClawToken },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sendToAll: true, messageText: openClawMessage, mediaUrl, campaignName }),
       });
       const body = await response.json();
@@ -388,7 +386,6 @@ export default function MarketingPage() {
           <div><span>OPENCLAW WHATSAPP</span><h3>Create a video ad for all consented contacts</h3><p>Upload a video only. The agent reads it from Cloud Storage, makes a short ad, and writes the promotional WhatsApp text automatically.</p></div>
           <label><span>Optional text-only message</span><textarea value={openClawMessage} onChange={(event) => setOpenClawMessage(event.target.value)} placeholder="Leave empty when uploading a video" maxLength={4096} /></label>
           <label><span>Video or image</span><input type="file" accept="video/*,image/*" onChange={(event) => setOpenClawMedia(event.target.files?.[0] || null)} />{openClawMedia && <small>{openClawMedia.name}</small>}</label>
-          <label><span>Outreach sending key</span><input type="password" value={openClawToken} onChange={(event) => setOpenClawToken(event.target.value)} placeholder="Configured Cloud Run key" autoComplete="off" /></label>
           <button type="button" onClick={() => void sendOpenClawBroadcast()} disabled={openClawSending}>{openClawSending ? "Queueing…" : openClawMedia ? "Create and send video ad" : "Send through OpenClaw"}</button>
           {openClawResult && <p role="status">{openClawResult}</p>}
         </div>

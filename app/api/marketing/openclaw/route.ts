@@ -4,10 +4,6 @@ import { queueOpenClawBroadcast, queueOpenClawMessage, validateOpenClawBroadcast
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const token = process.env.OUTREACH_WRITE_TOKEN;
-  if (!token || request.headers.get("x-outreach-token") !== token) {
-    return NextResponse.json({ error: "Outreach sending is not configured." }, { status: 403 });
-  }
   const payload = await request.json().catch(() => null);
   try {
     if (payload?.sendToAll) {
