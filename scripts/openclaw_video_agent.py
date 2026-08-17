@@ -66,7 +66,7 @@ def create_ad_copy(media_uri: str, mime_type: str, direction: str) -> tuple[str,
     client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
     prompt = f"""Analyze this LunchBox promotional video, including visible content and audio.
 Return JSON only with these fields:
-- promotional_text: an accurate, warm WhatsApp promotional message of 40-90 words. Do not invent prices, nutritional claims, partnerships, availability, or outcomes.
+- promotional_text: an accurate, appealing WhatsApp promotional message of 45-100 words. Use short, easy-to-scan lines, 2-4 relevant emojis, an inviting tone, and one clear call to action such as asking the recipient to reply for details. Do not invent prices, nutritional claims, partnerships, availability, or outcomes. Do not claim the recipient has watched the video.
 - clip_start_seconds: the most compelling point to begin a short advertisement (number, at least 0).
 - clip_duration_seconds: duration between 12 and 30 seconds.
 Optional campaign direction from the operator: {direction or 'none'}"""
