@@ -44,7 +44,8 @@ export function validateOpenClawBroadcastRequest(value: unknown): { ok: true; va
   const messageText = typeof record.messageText === "string" ? record.messageText.trim() : "";
   const mediaUrl = typeof record.mediaUrl === "string" ? record.mediaUrl.trim() : "";
   const campaignName = typeof record.campaignName === "string" ? record.campaignName.trim() : "";
-  if (!messageText || messageText.length > 4096) return { ok: false, error: "Enter a message between 1 and 4,096 characters." };
+  if (!messageText && !mediaUrl) return { ok: false, error: "Enter a message or attach a video or image." };
+  if (messageText.length > 4096) return { ok: false, error: "Message must be 4,096 characters or fewer." };
   if (mediaUrl && mediaUrl.length > 2048) return { ok: false, error: "Media path or URL is too long." };
   if (mediaUrl && !/^https?:\/\//i.test(mediaUrl) && !/^gs:\/\//i.test(mediaUrl) && !/^[A-Za-z]:\\/.test(mediaUrl)) return { ok: false, error: "Media must be a public HTTPS URL, Cloud Storage URI, or an absolute Windows file path." };
   return { ok: true, value: { messageText, mediaUrl: mediaUrl || undefined, campaignName: campaignName || undefined } };

@@ -132,7 +132,7 @@ export default function MarketingPage() {
   }
 
   async function sendOpenClawBroadcast() {
-    if (!openClawMessage.trim()) { setOpenClawResult("Enter the WhatsApp message first."); return; }
+    if (!openClawMessage.trim() && !openClawMedia) { setOpenClawResult("Attach a video or image, or enter a text-only message."); return; }
     if (!openClawToken.trim()) { setOpenClawResult("Enter the outreach sending key first."); return; }
     setOpenClawSending(true); setOpenClawResult("");
     try {
@@ -150,7 +150,9 @@ export default function MarketingPage() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Message could not be queued.");
-      setOpenClawResult(`${body.queued} message${body.queued === 1 ? "" : "s"} queued for OpenClaw delivery.`);
+      setOpenClawResult(openClawMedia
+        ? `${body.queued} video job${body.queued === 1 ? "" : "s"} queued. OpenClaw will create the short ad and promotional text from the video.`
+        : `${body.queued} message${body.queued === 1 ? "" : "s"} queued for OpenClaw delivery.`);
       setOpenClawMessage(""); setOpenClawMedia(null);
     } catch (sendError) {
       setOpenClawResult(sendError instanceof Error ? sendError.message : "Message could not be queued.");
@@ -383,11 +385,11 @@ export default function MarketingPage() {
       {tab === "outreach" && <section className={styles.panel}>
         <div className={styles.panelHead}><div><span>OUTREACH KIT</span><h2>Start a relevant conversation.</h2></div><p>Adapt these drafts before sending. Confirm consent and use real, verifiable LunchBox claims.</p></div>
         <div className={outreachStyles.openClawComposer}>
-          <div><span>OPENCLAW WHATSAPP</span><h3>Send to all consented contacts</h3><p>One message job is created for each unique, consented WhatsApp number in the communication table.</p></div>
-          <label><span>Message</span><textarea value={openClawMessage} onChange={(event) => setOpenClawMessage(event.target.value)} placeholder="Write the WhatsApp message to send" maxLength={4096} /></label>
-          <label><span>Optional video or image</span><input type="file" accept="video/*,image/*" onChange={(event) => setOpenClawMedia(event.target.files?.[0] || null)} />{openClawMedia && <small>{openClawMedia.name}</small>}</label>
+          <div><span>OPENCLAW WHATSAPP</span><h3>Create a video ad for all consented contacts</h3><p>Upload a video only. The agent reads it from Cloud Storage, makes a short ad, and writes the promotional WhatsApp text automatically.</p></div>
+          <label><span>Optional text-only message</span><textarea value={openClawMessage} onChange={(event) => setOpenClawMessage(event.target.value)} placeholder="Leave empty when uploading a video" maxLength={4096} /></label>
+          <label><span>Video or image</span><input type="file" accept="video/*,image/*" onChange={(event) => setOpenClawMedia(event.target.files?.[0] || null)} />{openClawMedia && <small>{openClawMedia.name}</small>}</label>
           <label><span>Outreach sending key</span><input type="password" value={openClawToken} onChange={(event) => setOpenClawToken(event.target.value)} placeholder="Configured Cloud Run key" autoComplete="off" /></label>
-          <button type="button" onClick={() => void sendOpenClawBroadcast()} disabled={openClawSending}>{openClawSending ? "Queueing…" : "Send through OpenClaw"}</button>
+          <button type="button" onClick={() => void sendOpenClawBroadcast()} disabled={openClawSending}>{openClawSending ? "Queueing…" : openClawMedia ? "Create and send video ad" : "Send through OpenClaw"}</button>
           {openClawResult && <p role="status">{openClawResult}</p>}
         </div>
         <div className={outreachStyles.recipientSection}>

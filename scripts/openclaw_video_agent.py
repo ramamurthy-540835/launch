@@ -39,6 +39,7 @@ TABLE = f"`{PROJECT_ID}.{DATASET_ID}.openclaw_communication`"
 BUCKET_NAME = os.getenv("GCS_BUCKET")
 MODEL = os.getenv("VERTEX_VIDEO_MODEL", "gemini-2.5-flash")
 LOCATION = os.getenv("VERTEX_AI_LOCATION", "global")
+FFMPEG = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 
 def gcs_parts(uri: str) -> tuple[str, str]:
@@ -83,7 +84,7 @@ Optional campaign direction from the operator: {direction or 'none'}"""
 
 def make_short_ad(source: Path, destination: Path, start: float, duration: float) -> None:
     command = [
-        "ffmpeg", "-y", "-ss", str(start), "-i", str(source), "-t", str(duration),
+        FFMPEG, "-y", "-ss", str(start), "-i", str(source), "-t", str(duration),
         "-vf", "scale='min(720,iw)':-2:force_original_aspect_ratio=decrease",
         "-c:v", "libx264", "-preset", "medium", "-crf", "27", "-c:a", "aac", "-b:a", "96k",
         "-movflags", "+faststart", str(destination),
@@ -114,11 +115,10 @@ def download_and_upload(storage_client: storage.Client, media_uri: str, director
     clip = directory / f"{contact_id}-short-ad.mp4"
     storage_client.bucket(bucket_name).blob(object_name).download_to_filename(source)
     make_short_ad(source, clip, start, duration)
-    if not BUCKET_NAME:
-        raise RuntimeError("GCS_BUCKET must be configured to store the generated ad.")
+    output_bucket = BUCKET_NAME or bucket_name
     output_name = f"openclaw-outreach/short-ads/{uuid.uuid4()}.mp4"
-    storage_client.bucket(BUCKET_NAME).blob(output_name).upload_from_filename(clip, content_type="video/mp4")
-    return clip, f"gs://{BUCKET_NAME}/{output_name}"
+    storage_client.bucket(output_bucket).blob(output_name).upload_from_filename(clip, content_type="video/mp4")
+    return clip, f"gs://{output_bucket}/{output_name}"
 
 
 def send_openclaw(number: str, message: str, clip: Path) -> str:
