@@ -41,6 +41,7 @@ MODEL = os.getenv("VERTEX_VIDEO_MODEL", "gemini-2.5-flash")
 LOCATION = os.getenv("VERTEX_AI_LOCATION", "global")
 FFMPEG = os.getenv("FFMPEG_PATH", "ffmpeg")
 OPENCLAW = os.getenv("OPENCLAW_COMMAND", "openclaw")
+APP_LINK = os.getenv("LUNCHBOX_APP_URL", "").strip()
 
 
 def gcs_parts(uri: str) -> tuple[str, str]:
@@ -78,6 +79,8 @@ Optional campaign direction from the operator: {direction or 'none'}"""
     text = str(data.get("promotional_text", "")).strip()
     if not text or len(text) > 1200:
         raise ValueError("Video model did not provide a usable promotional message.")
+    if APP_LINK:
+        text = f"{text}\n\n📲 Download the LunchBox app: {APP_LINK}"
     start = max(0.0, float(data.get("clip_start_seconds", 0)))
     duration = min(30.0, max(12.0, float(data.get("clip_duration_seconds", 20))))
     return text, start, duration
