@@ -40,6 +40,7 @@ BUCKET_NAME = os.getenv("GCS_BUCKET")
 MODEL = os.getenv("VERTEX_VIDEO_MODEL", "gemini-2.5-flash")
 LOCATION = os.getenv("VERTEX_AI_LOCATION", "global")
 FFMPEG = os.getenv("FFMPEG_PATH", "ffmpeg")
+OPENCLAW = os.getenv("OPENCLAW_COMMAND", "openclaw")
 
 
 def gcs_parts(uri: str) -> tuple[str, str]:
@@ -123,7 +124,7 @@ def download_and_upload(storage_client: storage.Client, media_uri: str, director
 
 def send_openclaw(number: str, message: str, clip: Path) -> str:
     result = subprocess.run(
-        ["openclaw", "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--media", str(clip), "--message", message],
+        [OPENCLAW, "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--media", str(clip), "--message", message],
         check=False, capture_output=True, text=True,
     )
     found = re.search(r"Message ID:\s*([A-Za-z0-9]+)", result.stdout + result.stderr)

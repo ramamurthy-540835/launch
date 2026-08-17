@@ -136,11 +136,15 @@ export default function MarketingPage() {
     try {
       let mediaUrl = "";
       if (openClawMedia) {
-        const form = new FormData(); form.set("media", openClawMedia);
-        const upload = await fetch("/api/marketing/openclaw/upload", { method: "POST", body: form });
-        const uploadBody = await upload.json();
-        if (!upload.ok) throw new Error(uploadBody.error || "Media upload failed.");
-        mediaUrl = uploadBody.mediaUrl;
+        if (openClawMedia.size > 100 * 1024 * 1024) throw new Error("Choose a video or image under 100 MB.");
+        const requestUpload = await fetch("/api/marketing/openclaw/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: openClawMedia.name, contentType: openClawMedia.type }) });
+        const requestText = await requestUpload.text();
+        let uploadRequest: { uploadUrl?: string; mediaUrl?: string; error?: string } = {};
+        try { uploadRequest = requestText ? JSON.parse(requestText) as typeof uploadRequest : {}; } catch { throw new Error(`Could not prepare the upload (HTTP ${requestUpload.status}).`); }
+        if (!requestUpload.ok || !uploadRequest.uploadUrl || !uploadRequest.mediaUrl) throw new Error(uploadRequest.error || `Could not prepare the upload (HTTP ${requestUpload.status}).`);
+        const upload = await fetch(uploadRequest.uploadUrl, { method: "PUT", headers: { "Content-Type": openClawMedia.type }, body: openClawMedia });
+        if (!upload.ok) throw new Error(`Video upload failed (HTTP ${upload.status}).`);
+        mediaUrl = uploadRequest.mediaUrl;
       }
       const response = await fetch("/api/marketing/openclaw", {
         method: "POST", headers: { "Content-Type": "application/json" },
