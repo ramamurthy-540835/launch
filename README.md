@@ -140,6 +140,32 @@ The marketing workspace can prepare audience-specific campaigns for schools, col
 
 Store API keys and the admin token in Google Secret Manager and expose them to Cloud Run as secrets; never use browser-prefixed environment variables for credentials. WhatsApp sends use approved media templates named `lunchbox_school_intro`, `lunchbox_college_intro`, and `lunchbox_community_intro`. The API remains in preview-only operation until the provider secrets exist.
 
+### OpenClaw WhatsApp video agent
+
+The Marketing OS Outreach Kit can queue one WhatsApp delivery per consented number in BigQuery table `openclaw_communication`. Text-only rows are sent by the local OpenClaw worker. A row with a `gs://` video `media_url` is processed by the local Python video agent: it asks Vertex AI Gemini to summarize the GCS video and create accurate promotional text, makes a 12-30 second WhatsApp-ready MP4 with FFmpeg, then sends the short ad and generated copy through the locally linked OpenClaw WhatsApp account.
+
+This is intentionally a local worker: the WhatsApp session is linked to the PC's loopback-only OpenClaw gateway, so Cloud Run cannot access it directly. The queue and media remain in the configured Google Cloud project.
+
+Install the worker prerequisites once on the Windows sender PC, then sign in for Application Default Credentials and enable Vertex AI:
+
+```powershell
+winget install Python.Python.3.12
+winget install Gyan.FFmpeg
+python -m pip install -r scripts\requirements-openclaw-video-agent.txt
+gcloud auth application-default login
+gcloud services enable aiplatform.googleapis.com
+```
+
+Set `GCS_BUCKET` to the same bucket configured for Cloud Run. Process text and video jobs with:
+
+```powershell
+$env:GCS_BUCKET = "your-configured-bucket"
+.\scripts\process-openclaw-outbox.ps1
+python .\scripts\openclaw_video_agent.py
+```
+
+The agent processes only `QUEUED` records with `whatsapp_consent = TRUE`. It changes every delivery to `SENT` or `FAILED` and saves the OpenClaw message ID. Do not run the text worker for video records; it intentionally skips media jobs so videos are shortened and given video-derived copy first.
+
 ### Shared Marketing OS workspace
 
 Marketing leads, scheduled events and outreach activities are stored in Firestore through the authenticated `/api/marketing/workspace` server route. Configure the Firebase web values (`NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, and optionally `NEXT_PUBLIC_FIREBASE_APP_ID`), enable email/password sign-in in Firebase Authentication, add the Cloud Run domains to Authorized domains, and set `MARKETING_ADMIN_EMAIL` to the authorized staff account. Existing browser-local Marketing OS records are imported once after the authorized account signs in.
@@ -155,4 +181,3 @@ Marketing event persistence keeps `marketing_events.linked_lead_ids` during migr
 - Allergy acknowledgements and an emergency escalation process
 - Consent, encryption, audit logs, data minimization and retention for childrenâ€™s data
 - Tests, monitoring, CI/CD and separate development/staging/production projects
-

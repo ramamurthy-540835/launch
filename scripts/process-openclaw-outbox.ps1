@@ -30,7 +30,7 @@ function Get-MediaPath([string]$mediaUrl, [string]$contactId) {
   return $target
 }
 
-$query = "SELECT contact_id, name, whatsapp_number, message_text, media_url FROM $table WHERE status='QUEUED' AND whatsapp_consent=TRUE ORDER BY scheduled_at, created_at LIMIT $Limit"
+$query = "SELECT contact_id, name, whatsapp_number, message_text, media_url FROM $table WHERE status='QUEUED' AND whatsapp_consent=TRUE AND (media_url IS NULL OR media_url = '') ORDER BY scheduled_at, created_at LIMIT $Limit"
 $raw = & bq query --use_legacy_sql=false --project_id=$projectId --location=asia-south1 --format=json $query
 if ($LASTEXITCODE -ne 0) { throw "Unable to read queued OpenClaw messages." }
 $jobs = if ($raw) { @($raw | ConvertFrom-Json) } else { @() }
