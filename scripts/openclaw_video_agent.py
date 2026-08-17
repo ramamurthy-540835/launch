@@ -123,14 +123,22 @@ def download_and_upload(storage_client: storage.Client, media_uri: str, director
 
 
 def send_openclaw(number: str, message: str, clip: Path) -> str:
-    result = subprocess.run(
-        [OPENCLAW, "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--media", str(clip), "--message", message],
+    """Send video and promotional copy separately so WhatsApp does not truncate a media caption."""
+    media_result = subprocess.run(
+        [OPENCLAW, "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--media", str(clip), "--message", "🎬 A special LunchBox video for you"],
         check=False, capture_output=True, text=True,
     )
-    found = re.search(r"Message ID:\s*([A-Za-z0-9]+)", result.stdout + result.stderr)
-    if result.returncode or not found:
-        raise RuntimeError((result.stdout + result.stderr).strip() or "OpenClaw delivery failed.")
-    return found.group(1)
+    media_id = re.search(r"Message ID:\s*([A-Za-z0-9]+)", media_result.stdout + media_result.stderr)
+    if media_result.returncode or not media_id:
+        raise RuntimeError((media_result.stdout + media_result.stderr).strip() or "OpenClaw video delivery failed.")
+    text_result = subprocess.run(
+        [OPENCLAW, "message", "send", "--channel", "whatsapp", "--account", "default", "--target", number, "--message", message],
+        check=False, capture_output=True, text=True,
+    )
+    text_id = re.search(r"Message ID:\s*([A-Za-z0-9]+)", text_result.stdout + text_result.stderr)
+    if text_result.returncode or not text_id:
+        raise RuntimeError((text_result.stdout + text_result.stderr).strip() or "OpenClaw promotional-text delivery failed.")
+    return f"video:{media_id.group(1)}, text:{text_id.group(1)}"
 
 
 def main() -> int:
