@@ -55,6 +55,9 @@ export type OutreachActivity = {
   performedBy: string;
   performedAt: string;
   nextFollowUpDate?: string;
+  status?: MarketingEventStatus;
+  actualAttendance?: number;
+  leadsGeneratedCount?: number;
   createdAt: string;
 };
 
