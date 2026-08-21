@@ -3,6 +3,8 @@ substitutions:
   _SERVICE: lunchbox
   _REPOSITORY: lunchbox
   _GOOGLE_MAPS_BROWSER_SECRET: google-maps-browser-api-key
+  _SERPAPI_SECRET: serpapi-key
+  _GOOGLE_PLACES_SECRET: google-places-api-key
 
 steps:
   - id: test
@@ -39,7 +41,7 @@ steps:
       - --platform=managed
       - --allow-unauthenticated
       - --update-env-vars=GCP_PROJECT_ID=${PROJECT_ID},DEFAULT_DAILY_CAPACITY=1500,FRANCHISE_NETWORK_TARGET=198,FRANCHISE_DAILY_STUDENT_CAPACITY=1500
-      - --update-secrets=GOOGLE_MAPS_BROWSER_API_KEY=${_GOOGLE_MAPS_BROWSER_SECRET}:latest
+      - --update-secrets=GOOGLE_MAPS_BROWSER_API_KEY=${_GOOGLE_MAPS_BROWSER_SECRET}:latest,SERP_API_KEY=${_SERPAPI_SECRET}:latest,GOOGLE_PLACES_API_KEY=${_GOOGLE_PLACES_SECRET}:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
