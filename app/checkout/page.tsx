@@ -164,10 +164,12 @@ export default function CheckoutPage() {
   if (confirmation) {
     return <main className="checkout-page">
       <header className="checkout-topbar"><Link className="brand" href="/"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></Link></header>
-      <section className="checkout-success">
-        <span>✓</span>
-        <h1>Lunches booked</h1>
-        <p>Order {confirmation.slice(0, 13)} is confirmed. The school coordinator will receive the delivery details.</p>
+      <section className="checkout-success lunchbox-success">
+        <div className="success-confetti" aria-hidden="true"><i>✦</i><i>★</i><i>✦</i><i>★</i></div>
+        <span className="success-box">🍱</span>
+        <h1>Thanks for your order!</h1>
+        <p>Your Lunchbox is on its way! ✨</p>
+        <small>Order {confirmation.slice(0, 13)} is confirmed. The school coordinator will receive the delivery details.</small>
         <Link className="primary-button" href="/">Back to menu <span>→</span></Link>
       </section>
     </main>;

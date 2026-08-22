@@ -23,6 +23,7 @@ export default function Home() {
   const [gradeBand, setGradeBand] = useState(Object.keys(fallbackGradePlans)[0]);
   const [cart, setCart] = useState<Cart>({});
   const [cartOpen, setCartOpen] = useState(false);
+  const [storyStep, setStoryStep] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/catalog").then(async (response) => {
@@ -61,6 +62,32 @@ export default function Home() {
   function addMeal(id: string) {
     setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
   }
+
+  const todayMeal = meals[new Date().getDay() % meals.length] || meals[0];
+  const fruitOfTheDay = [
+    { name: "Mango", emoji: "🥭" }, { name: "Apple", emoji: "🍎" }, { name: "Orange", emoji: "🍊" },
+    { name: "Guava", emoji: "🍐" }, { name: "Banana", emoji: "🍌" },
+  ][new Date().getDate() % 5];
+
+  function finishLunchStory() {
+    if (todayMeal) addMeal(todayMeal.id);
+    setStoryStep(null);
+    setCartOpen(true);
+  }
+
+  useEffect(() => {
+    if (storyStep === null) return;
+    if (storyStep >= 5) {
+      const timer = window.setTimeout(() => {
+        if (todayMeal) setCart((current) => ({ ...current, [todayMeal.id]: (current[todayMeal.id] || 0) + 1 }));
+        setStoryStep(null);
+        setCartOpen(true);
+      }, 1100);
+      return () => window.clearTimeout(timer);
+    }
+    const timer = window.setTimeout(() => setStoryStep((step) => step === null ? null : step + 1), 850);
+    return () => window.clearTimeout(timer);
+  }, [storyStep, todayMeal]);
 
   function changeQuantity(id: string, amount: number) {
     setCart((current) => {
@@ -102,7 +129,7 @@ export default function Home() {
           <h1>Big nutrition for<br /><em>bright young minds.</em></h1>
           <p>Freshly cooked, balanced school lunches designed for growing students from 6th to 12th standard.</p>
           <div className="hero-actions">
-            <a className="primary-button" href="#menu">Explore this week&apos;s menu <span>→</span></a>
+            <button className="primary-button story-order-button" onClick={() => setStoryStep(0)}>Order ₹39 Lunch <span>→</span></button>
             <div className="parent-proof"><b>4.9 ★</b><span>Loved by 2,000+ parents</span></div>
           </div>
         </div>
@@ -151,6 +178,27 @@ export default function Home() {
       <section className="franchise-section" id="franchises"><div className="section-heading"><div><span className="kicker">TAMIL NADU FRANCHISE DIRECTORY</span><h2>Explore the LunchBox partner network.</h2></div><p>Compare approved franchise partners across Chennai, Madurai, Trichy, and Coimbatore.</p></div><FranchiseNetworkExplorer />{franchiseError && <p className="franchise-message" role="alert">{franchiseError}</p>}{!franchiseError && <FranchiseLocationDashboard franchises={franchises} />}</section>
 
       <footer><a className="brand" href="#top"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></a><p>Made with care for growing minds in Tamil Nadu.</p><small>Menu is illustrative. Final meal plans should be approved by a qualified pediatric dietitian and the participating school.</small></footer>
+
+      {storyStep !== null && todayMeal && <div className="lunch-story" role="dialog" aria-modal="true" aria-label="A magical Lunchbox story">
+        <div className={`story-card step-${storyStep}`}>
+          <button className="story-skip" onClick={finishLunchStory}>Skip story</button>
+          <div className="story-sky"><span className="story-cloud cloud-a" /><span className="story-cloud cloud-b" /><span className="story-sparkle">✦</span></div>
+          <div className="story-scene">
+            <div className="story-school"><span>⌂</span><small>SCHOOL</small></div><div className="story-boy"><span>🧒</span><i /></div><div className="story-angel"><span>😇</span><i>🪽</i></div>
+            <div className="story-fruit">{fruitOfTheDay.emoji}</div><div className="story-tree"><span>🌳</span><i>{fruitOfTheDay.emoji}</i><b>{fruitOfTheDay.emoji}</b></div>
+            <div className="story-lunchbox"><span>🍱</span><div><i>{todayMeal.emoji}</i><i>🥗</i><i>🍚</i></div></div>
+          </div>
+          <div className="story-copy" aria-live="polite">
+            {storyStep === 0 && <><b>A tiny adventure begins…</b><span>After school, a hungry hero heads home.</span></>}
+            {storyStep === 1 && <><b>A friendly angel appears!</b><span>Today&apos;s magical {fruitOfTheDay.name.toLowerCase()} is here.</span></>}
+            {storyStep === 2 && <><b>One little gift…</b><span>Reach for the {fruitOfTheDay.name.toLowerCase()}!</span></>}
+            {storyStep === 3 && <><b>Poof! A fruit tree!</b><span>It grows a fresh {fruitOfTheDay.name.toLowerCase()} just for lunch.</span></>}
+            {storyStep === 4 && <><b>What&apos;s inside?</b><span>The fruit opens with a bright little sparkle.</span></>}
+            {storyStep === 5 && <><b>Today&apos;s Lunchbox is ready!</b><span>{todayMeal.description}</span></>}
+          </div>
+          <div className="story-dots" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map((step) => <i className={step <= storyStep ? "active" : ""} key={step} />)}</div>
+        </div>
+      </div>}
 
       {cartOpen && <div className="overlay" onMouseDown={() => setCartOpen(false)}><aside className="drawer" onMouseDown={(event) => event.stopPropagation()}>
         <div className="drawer-head"><div><span className="kicker">YOUR ORDER</span><h2>Lunch bag</h2></div><button onClick={() => setCartOpen(false)}>×</button></div>
