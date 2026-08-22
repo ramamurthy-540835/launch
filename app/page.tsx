@@ -4,9 +4,10 @@ import InstallAppButton from "@/components/InstallAppButton";
 import FranchiseLocationDashboard from "@/components/FranchiseLocationDashboard";
 import FranchiseNetworkExplorer from "@/components/franchises/FranchiseNetworkExplorer";
 import type { Franchise } from "@/lib/franchises";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cities as fallbackCities, gradePlans as fallbackGradePlans, mealNutrition, meals as fallbackMeals, schools as fallbackSchools, type GradePlan, type Meal, type School } from "@/lib/meals";
 import { MARKET_PRICE, schoolMealPrice } from "@/lib/pricing";
+import { getFruitOfTheDay } from "@/lib/lunchbox/fruit-of-the-day";
 
 type Cart = Record<string, number>;
 
@@ -24,6 +25,9 @@ export default function Home() {
   const [cart, setCart] = useState<Cart>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [storyStep, setStoryStep] = useState<number | null>(null);
+  const [storySoundOn, setStorySoundOn] = useState(true);
+  const storyAudio = useRef<AudioContext | null>(null);
+  const storyHandoff = useRef(false);
 
   useEffect(() => {
     fetch("/api/catalog").then(async (response) => {
@@ -64,30 +68,46 @@ export default function Home() {
   }
 
   const todayMeal = meals[new Date().getDay() % meals.length] || meals[0];
-  const fruitOfTheDay = [
-    { name: "Mango", emoji: "🥭" }, { name: "Apple", emoji: "🍎" }, { name: "Orange", emoji: "🍊" },
-    { name: "Guava", emoji: "🍐" }, { name: "Banana", emoji: "🍌" },
-  ][new Date().getDate() % 5];
+  const fruitKey = getFruitOfTheDay();
+  const fruitOfTheDay = { mango: { name: "Mango", emoji: "🥭" }, apple: { name: "Apple", emoji: "🍎" }, orange: { name: "Orange", emoji: "🍊" }, guava: { name: "Guava", emoji: "🍐" }, banana: { name: "Banana", emoji: "🍌" }, pomegranate: { name: "Pomegranate", emoji: "🔴" }, grapes: { name: "Grapes", emoji: "🍇" } }[fruitKey];
 
-  function finishLunchStory() {
-    if (todayMeal) addMeal(todayMeal.id);
+  const finishLunchStory = useCallback(() => {
+    if (storyHandoff.current) return;
+    storyHandoff.current = true;
+    if (todayMeal) setCart((current) => ({ ...current, [todayMeal.id]: (current[todayMeal.id] || 0) + 1 }));
     setStoryStep(null);
     setCartOpen(true);
-  }
+  }, [todayMeal]);
+
+  const playStoryTone = useCallback((step: number) => {
+    if (!storySoundOn) return;
+    const Audio = window.AudioContext;
+    storyAudio.current ||= new Audio();
+    const context = storyAudio.current;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = step === 4 ? "sine" : "triangle";
+    oscillator.frequency.setValueAtTime([220, 330, 440, 294, 660, 523][step] || 330, context.currentTime);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.8);
+    oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.85);
+  }, [storySoundOn]);
+
+  function startLunchStory() { storyHandoff.current = false; setStoryStep(0); playStoryTone(0); }
 
   useEffect(() => {
     if (storyStep === null) return;
     if (storyStep >= 5) {
       const timer = window.setTimeout(() => {
-        if (todayMeal) setCart((current) => ({ ...current, [todayMeal.id]: (current[todayMeal.id] || 0) + 1 }));
-        setStoryStep(null);
-        setCartOpen(true);
+        finishLunchStory();
       }, 1100);
       return () => window.clearTimeout(timer);
     }
-    const timer = window.setTimeout(() => setStoryStep((step) => step === null ? null : step + 1), 850);
+    playStoryTone(storyStep);
+    const timer = window.setTimeout(() => setStoryStep((step) => step === null ? null : step + 1), 1500);
     return () => window.clearTimeout(timer);
-  }, [storyStep, todayMeal]);
+  }, [storyStep, todayMeal, playStoryTone, finishLunchStory]);
 
   function changeQuantity(id: string, amount: number) {
     setCart((current) => {
@@ -129,7 +149,7 @@ export default function Home() {
           <h1>Big nutrition for<br /><em>bright young minds.</em></h1>
           <p>Freshly cooked, balanced school lunches designed for growing students from 6th to 12th standard.</p>
           <div className="hero-actions">
-            <button className="primary-button story-order-button" onClick={() => setStoryStep(0)}>Order ₹39 Lunch <span>→</span></button>
+            <button className="primary-button story-order-button" onClick={startLunchStory}>Order ₹39 Lunch <span>→</span></button>
             <div className="parent-proof"><b>4.9 ★</b><span>Loved by 2,000+ parents</span></div>
           </div>
         </div>
@@ -182,6 +202,7 @@ export default function Home() {
       {storyStep !== null && todayMeal && <div className="lunch-story" role="dialog" aria-modal="true" aria-label="A magical Lunchbox story">
         <div className={`story-card step-${storyStep}`}>
           <button className="story-skip" onClick={finishLunchStory}>Skip story</button>
+          <button className="story-sound" onClick={() => setStorySoundOn((on) => !on)} aria-label={storySoundOn ? "Mute sound" : "Turn on sound"}>{storySoundOn ? "Sound on" : "Sound off"}</button>
           <div className="story-sky"><span className="story-cloud cloud-a" /><span className="story-cloud cloud-b" /><span className="story-sparkle">✦</span></div>
           <div className="story-scene">
             <div className="story-school"><span>⌂</span><small>SCHOOL</small></div><div className="story-boy"><span>🧒</span><i /></div><div className="story-angel"><span>😇</span><i>🪽</i></div>
@@ -189,12 +210,12 @@ export default function Home() {
             <div className="story-lunchbox"><span>🍱</span><div><i>{todayMeal.emoji}</i><i>🥗</i><i>🍚</i></div></div>
           </div>
           <div className="story-copy" aria-live="polite">
-            {storyStep === 0 && <><b>A tiny adventure begins…</b><span>After school, a hungry hero heads home.</span></>}
-            {storyStep === 1 && <><b>A friendly angel appears!</b><span>Today&apos;s magical {fruitOfTheDay.name.toLowerCase()} is here.</span></>}
-            {storyStep === 2 && <><b>One little gift…</b><span>Reach for the {fruitOfTheDay.name.toLowerCase()}!</span></>}
-            {storyStep === 3 && <><b>Poof! A fruit tree!</b><span>It grows a fresh {fruitOfTheDay.name.toLowerCase()} just for lunch.</span></>}
-            {storyStep === 4 && <><b>What&apos;s inside?</b><span>The fruit opens with a bright little sparkle.</span></>}
-            {storyStep === 5 && <><b>Today&apos;s Lunchbox is ready!</b><span>{todayMeal.description}</span></>}
+            {storyStep === 0 && <><b>01 / The school day ends</b><span>Fresh energy for the next big thing. Sound design begins.</span></>}
+            {storyStep === 1 && <><b>02 / Your food, your fuel</b><span>Real ingredients. Made for busy, brilliant days.</span></>}
+            {storyStep === 2 && <><b>03 / A choice in your hands</b><span>Explore today&apos;s meal in a cinematic, spatial view.</span></>}
+            {storyStep === 3 && <><b>04 / Freshness, unlocked</b><span>Every lunch is packed to power school, sport, and play.</span></>}
+            {storyStep === 4 && <><b>05 / Look closer</b><span>Chapati, rice, vegetables, sambar, curd and more — all together.</span></>}
+            {storyStep === 5 && <><b>06 / Today&apos;s Lunchbox is ready</b><span>{todayMeal.description}</span></>}
           </div>
           <div className="story-dots" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map((step) => <i className={step <= storyStep ? "active" : ""} key={step} />)}</div>
         </div>
