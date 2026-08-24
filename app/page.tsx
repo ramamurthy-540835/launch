@@ -14,7 +14,6 @@ type Cart = Record<string, number>;
 
 export default function Home() {
   const [meals, setMeals] = useState<Meal[]>(fallbackMeals);
-  const [schools, setSchools] = useState<School[]>(fallbackSchools);
   const [gradePlans, setGradePlans] = useState<Record<string, GradePlan>>(fallbackGradePlans);
   const [catalogError, setCatalogError] = useState("");
   const [franchises, setFranchises] = useState<Franchise[]>([]);
@@ -29,6 +28,7 @@ export default function Home() {
   const [storySoundOn, setStorySoundOn] = useState(true);
   const storyAudio = useRef<AudioContext | null>(null);
   const storyHandoff = useRef(false);
+  const storyMealId = useRef<string | null>(null);
 
   useEffect(() => {
     fetch("/api/catalog").then(async (response) => {
@@ -36,7 +36,6 @@ export default function Home() {
       return response.json();
     }).then((catalog) => {
       setMeals(catalog.meals);
-      setSchools(catalog.schools);
       setGradePlans(catalog.gradePlans);
       setCatalogError("");
       setCity((current) => catalog.cities.includes(current) ? current : catalog.cities[0]);
@@ -49,7 +48,6 @@ export default function Home() {
   }, []);
   useEffect(() => { fetch("/api/franchises").then(async (response) => { if (!response.ok) throw new Error("Franchise details unavailable"); return response.json(); }).then((data) => { setFranchises(data.franchises || []); setFranchiseError(""); }).catch((error) => setFranchiseError(error instanceof Error ? error.message : "Franchise details unavailable")); }, []);
 
-  const citySchools = schools.filter((school) => school.city === city);
   const itemCount = Object.values(cart).reduce((sum, count) => sum + count, 0);
   const unitPrice = mealAudiencePrice(audience);
   const subtotal = useMemo(
@@ -57,18 +55,17 @@ export default function Home() {
     [cart, meals, unitPrice],
   );
 
-  function addMeal(id: string) {
-    setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
-  }
-
   const todayMeal = meals[new Date().getDay() % meals.length] || meals[0];
+  const storyMeal = meals.find((meal) => meal.id === storyMealId.current) || todayMeal;
   const fruitKey = getFruitOfTheDay();
   const fruitOfTheDay = { mango: { name: "Mango", emoji: "🥭" }, apple: { name: "Apple", emoji: "🍎" }, orange: { name: "Orange", emoji: "🍊" }, guava: { name: "Guava", emoji: "🍐" }, banana: { name: "Banana", emoji: "🍌" }, pomegranate: { name: "Pomegranate", emoji: "🔴" }, grapes: { name: "Grapes", emoji: "🍇" } }[fruitKey];
 
   const finishLunchStory = useCallback(() => {
     if (storyHandoff.current) return;
     storyHandoff.current = true;
-    if (todayMeal) setCart((current) => ({ ...current, [todayMeal.id]: (current[todayMeal.id] || 0) + 1 }));
+    const mealId = storyMealId.current || todayMeal?.id;
+    if (mealId) setCart((current) => ({ ...current, [mealId]: (current[mealId] || 0) + 1 }));
+    storyMealId.current = null;
     setStoryStep(null);
     setCartOpen(true);
   }, [todayMeal]);
@@ -88,11 +85,17 @@ export default function Home() {
     oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.85);
   }, [storySoundOn]);
 
-  function startLunchStory() {
+  function startLunchStory(mealId = todayMeal?.id) {
     storyHandoff.current = false;
-    if (unitPrice !== 39) return finishLunchStory();
+    storyMealId.current = mealId || null;
+    if (audience !== "school") return finishLunchStory();
     setStoryStep(0);
     playStoryTone(0);
+  }
+
+  function addMeal(id: string) {
+    if (audience === "school") return startLunchStory(id);
+    setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
   }
 
   useEffect(() => {
@@ -149,7 +152,7 @@ export default function Home() {
           <h1>Big nutrition for<br /><em>bright young minds.</em></h1>
           <p>Freshly cooked, balanced school lunches designed for growing students from 6th to 12th standard.</p>
           <div className="hero-actions">
-            <button className="primary-button story-order-button" onClick={startLunchStory}>Order ₹39 Lunch <span>→</span></button>
+            <button className="primary-button story-order-button" onClick={() => startLunchStory()}>Order ₹{unitPrice} Lunch <span>→</span></button>
             <div className="parent-proof"><b>4.9 ★</b><span>Loved by 2,000+ parents</span></div>
           </div>
         </div>
@@ -179,15 +182,11 @@ export default function Home() {
 
         <AudienceCategorySelector value={audience} onChange={setAudience} />
 
-        <div className="filters">
-          <label><span>Onboarded school</span><select value={schoolId} onChange={(event) => setSchoolId(event.target.value)}>{citySchools.map((school) => <option value={school.id} key={school.id}>{school.name} · {school.area}</option>)}<option value="request">My school is not listed</option></select></label>
-          <label><span>Student grade</span><select value={gradeBand} onChange={(event) => setGradeBand(event.target.value)}>{Object.entries(gradePlans).map(([id, item]) => <option value={id} key={id}>{item.label} standard</option>)}</select></label>
-          <div className="diet-tabs" aria-label="Meal type"><button className="active">100% vegetarian</button></div>
-        </div>
+        <div className="menu-diet" aria-label="Meal type"><span>100% vegetarian</span></div>
 
         <div className="meal-grid">
           {catalogError && <p role="alert">{catalogError}. Please try again shortly.</p>}
-          {gradePlans[gradeBand] && meals.map((meal) => <MealCard key={meal.id} meal={meal} gradePlan={gradePlans[gradeBand]} price={unitPrice} quantity={cart[meal.id] || 0} onAdd={() => addMeal(meal.id)} />)}
+          {gradePlans[gradeBand] && meals.map((meal) => <MealCard key={meal.id} meal={meal} gradePlan={gradePlans[gradeBand]} price={unitPrice} quantity={cart[meal.id] || 0} storyEnabled={audience === "school"} onAdd={() => addMeal(meal.id)} />)}
         </div>
       </section>
 
@@ -200,7 +199,7 @@ export default function Home() {
 
       <footer><a className="brand" href="#top"><span className="brand-mark">L</span><span>Lunch<span>Box</span></span></a><p>Made with care for growing minds in Tamil Nadu.</p><small>Menu is illustrative. Final meal plans should be approved by a qualified pediatric dietitian and the participating school.</small></footer>
 
-      {storyStep !== null && todayMeal && <div className="lunch-story" role="dialog" aria-modal="true" aria-label="A magical Lunchbox story">
+      {storyStep !== null && storyMeal && <div className="lunch-story" role="dialog" aria-modal="true" aria-label="A magical Lunchbox story">
         <div className={`story-card step-${storyStep}`}>
           <button className="story-skip" onClick={finishLunchStory}>Skip story</button>
           <button className="story-sound" onClick={() => setStorySoundOn((on) => !on)} aria-label={storySoundOn ? "Mute sound" : "Turn on sound"}>{storySoundOn ? "Sound on" : "Sound off"}</button>
@@ -208,7 +207,7 @@ export default function Home() {
           <div className="story-scene">
             <div className="story-school"><span>⌂</span><small>SCHOOL</small></div><div className="story-boy"><span>🧒</span><i /></div><div className="story-angel"><span>😇</span><i>🪽</i></div>
             <div className="story-fruit">{fruitOfTheDay.emoji}</div><div className="story-tree"><span>🌳</span><i>{fruitOfTheDay.emoji}</i><b>{fruitOfTheDay.emoji}</b></div>
-            <div className="story-lunchbox"><span>🍱</span><div><i>{todayMeal.emoji}</i><i>🥗</i><i>🍚</i></div></div>
+            <div className="story-lunchbox"><span>🍱</span><div><i>{storyMeal.emoji}</i><i>🥗</i><i>🍚</i></div></div>
           </div>
           <div className="story-copy" aria-live="polite">
             {storyStep === 0 && <><b>01 / The school day ends</b><span>Fresh energy for the next big thing. Sound design begins.</span></>}
@@ -216,7 +215,7 @@ export default function Home() {
             {storyStep === 2 && <><b>03 / A choice in your hands</b><span>Explore today&apos;s meal in a cinematic, spatial view.</span></>}
             {storyStep === 3 && <><b>04 / Freshness, unlocked</b><span>Every lunch is packed to power school, sport, and play.</span></>}
             {storyStep === 4 && <><b>05 / Look closer</b><span>Chapati, rice, vegetables, sambar, curd and more — all together.</span></>}
-            {storyStep === 5 && <><b>06 / Today&apos;s Lunchbox is ready</b><span>{todayMeal.description}</span></>}
+            {storyStep === 5 && <><b>06 / Today&apos;s Lunchbox is ready</b><span>{storyMeal.description}</span></>}
           </div>
           <div className="story-dots" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map((step) => <i className={step <= storyStep ? "active" : ""} key={step} />)}</div>
         </div>
@@ -234,10 +233,10 @@ export default function Home() {
   );
 }
 
-function MealCard({ meal, gradePlan, price, quantity, onAdd }: { meal: Meal; gradePlan: GradePlan; price: number; quantity: number; onAdd: () => void }) {
+function MealCard({ meal, gradePlan, price, quantity, storyEnabled, onAdd }: { meal: Meal; gradePlan: GradePlan; price: number; quantity: number; storyEnabled: boolean; onAdd: () => void }) {
   const nutrition = mealNutrition(meal, gradePlan);
   return <article className="meal-card">
     <div className={`meal-photo ${meal.color}`}><span className="day-pill">{meal.day} · {meal.shortDate}</span><span className="food-emoji">{meal.emoji}</span><span className="rating">★ {meal.rating}</span></div>
-    <div className="meal-body"><div className="tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><h3>{meal.name}</h3><p>{meal.description}</p><div className="macros"><span><b>{nutrition.estimatedProteinG}g</b> protein</span><span><b>{nutrition.estimatedCalories}</b> kcal</span><span><b>{nutrition.targetCalories}</b> kcal grade target</span></div><div className="meal-bottom"><strong>₹{price}<small> / meal</small></strong><button onClick={onAdd}>{quantity ? `Add another (${quantity})` : "Add to bag"} <span>+</span></button></div></div>
+    <div className="meal-body"><div className="tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><h3>{meal.name}</h3><p>{meal.description}</p><div className="macros"><span><b>{nutrition.estimatedProteinG}g</b> protein</span><span><b>{nutrition.estimatedCalories}</b> kcal</span><span><b>{nutrition.targetCalories}</b> kcal grade target</span></div><div className="meal-bottom"><strong>₹{price}<small> / meal</small></strong><button onClick={onAdd}>{storyEnabled ? (quantity ? `Watch story & add (${quantity})` : "Watch story & add") : (quantity ? `Add another (${quantity})` : "Add to bag")} <span>+</span></button></div></div>
   </article>;
 }
