@@ -88,14 +88,12 @@ export default function Home() {
   function startLunchStory(mealId = todayMeal?.id) {
     storyHandoff.current = false;
     storyMealId.current = mealId || null;
-    if (audience !== "school") return finishLunchStory();
     setStoryStep(0);
     playStoryTone(0);
   }
 
   function addMeal(id: string) {
-    if (audience === "school") return startLunchStory(id);
-    setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
+    startLunchStory(id);
   }
 
   useEffect(() => {
@@ -186,7 +184,7 @@ export default function Home() {
 
         <div className="meal-grid">
           {catalogError && <p role="alert">{catalogError}. Please try again shortly.</p>}
-          {gradePlans[gradeBand] && meals.map((meal) => <MealCard key={meal.id} meal={meal} gradePlan={gradePlans[gradeBand]} price={unitPrice} quantity={cart[meal.id] || 0} storyEnabled={audience === "school"} onAdd={() => addMeal(meal.id)} />)}
+          {gradePlans[gradeBand] && meals.map((meal) => <MealCard key={meal.id} meal={meal} gradePlan={gradePlans[gradeBand]} price={unitPrice} quantity={cart[meal.id] || 0} storyEnabled onAdd={() => addMeal(meal.id)} />)}
         </div>
       </section>
 
