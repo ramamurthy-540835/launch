@@ -1,18 +1,18 @@
 "use client";
 
 import InstallAppButton from "@/components/InstallAppButton";
+import AudienceCategorySelector from "@/components/AudienceCategorySelector";
 import FranchiseLocationDashboard from "@/components/FranchiseLocationDashboard";
 import FranchiseNetworkExplorer from "@/components/franchises/FranchiseNetworkExplorer";
 import type { Franchise } from "@/lib/franchises";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cities as fallbackCities, gradePlans as fallbackGradePlans, mealNutrition, meals as fallbackMeals, schools as fallbackSchools, type GradePlan, type Meal, type School } from "@/lib/meals";
-import { MARKET_PRICE, schoolMealPrice } from "@/lib/pricing";
+import { mealAudiencePrice, type MealAudience } from "@/lib/pricing";
 import { getFruitOfTheDay } from "@/lib/lunchbox/fruit-of-the-day";
 
 type Cart = Record<string, number>;
 
 export default function Home() {
-  const [cities, setCities] = useState<string[]>(fallbackCities);
   const [meals, setMeals] = useState<Meal[]>(fallbackMeals);
   const [schools, setSchools] = useState<School[]>(fallbackSchools);
   const [gradePlans, setGradePlans] = useState<Record<string, GradePlan>>(fallbackGradePlans);
@@ -22,6 +22,7 @@ export default function Home() {
   const [city, setCity] = useState(fallbackCities[0]);
   const [schoolId, setSchoolId] = useState(fallbackSchools[0]?.id || "request");
   const [gradeBand, setGradeBand] = useState(Object.keys(fallbackGradePlans)[0]);
+  const [audience, setAudience] = useState<MealAudience>("school");
   const [cart, setCart] = useState<Cart>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [storyStep, setStoryStep] = useState<number | null>(null);
@@ -34,7 +35,6 @@ export default function Home() {
       if (!response.ok) throw new Error("Catalogue unavailable");
       return response.json();
     }).then((catalog) => {
-      setCities(catalog.cities);
       setMeals(catalog.meals);
       setSchools(catalog.schools);
       setGradePlans(catalog.gradePlans);
@@ -50,18 +50,12 @@ export default function Home() {
   useEffect(() => { fetch("/api/franchises").then(async (response) => { if (!response.ok) throw new Error("Franchise details unavailable"); return response.json(); }).then((data) => { setFranchises(data.franchises || []); setFranchiseError(""); }).catch((error) => setFranchiseError(error instanceof Error ? error.message : "Franchise details unavailable")); }, []);
 
   const citySchools = schools.filter((school) => school.city === city);
-  const selectedSchool = schools.find((school) => school.id === schoolId);
   const itemCount = Object.values(cart).reduce((sum, count) => sum + count, 0);
-  const unitPrice = selectedSchool ? schoolMealPrice(selectedSchool) : MARKET_PRICE;
+  const unitPrice = mealAudiencePrice(audience);
   const subtotal = useMemo(
     () => meals.reduce((sum, meal) => sum + unitPrice * (cart[meal.id] || 0), 0),
     [cart, meals, unitPrice],
   );
-
-  function changeCity(nextCity: string) {
-    setCity(nextCity);
-    setSchoolId(schools.find((school) => school.city === nextCity)?.id || "request");
-  }
 
   function addMeal(id: string) {
     setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
@@ -94,7 +88,12 @@ export default function Home() {
     oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.85);
   }, [storySoundOn]);
 
-  function startLunchStory() { storyHandoff.current = false; setStoryStep(0); playStoryTone(0); }
+  function startLunchStory() {
+    storyHandoff.current = false;
+    if (unitPrice !== 39) return finishLunchStory();
+    setStoryStep(0);
+    playStoryTone(0);
+  }
 
   useEffect(() => {
     if (storyStep === null) return;
@@ -119,7 +118,7 @@ export default function Home() {
   }
 
   function continueToCheckout() {
-    sessionStorage.setItem("lunchbox_checkout", JSON.stringify({ cart, city, schoolId, gradeBand }));
+    sessionStorage.setItem("lunchbox_checkout", JSON.stringify({ cart, city, schoolId, gradeBand, audience }));
     window.location.assign("/checkout");
   }
 
@@ -141,6 +140,7 @@ export default function Home() {
           <span>Bag</span>
           <b>{itemCount}</b>
         </button>
+        <a className="profile-button" href="/checkout" aria-label="Login or open your profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.8-4 3.1-6 7.5-6s6.7 2 7.5 6"/></svg><span>Login</span></a>
       </header>
 
       <section className="hero" id="top">
@@ -177,8 +177,9 @@ export default function Home() {
           <p>Every packet contains 1 chapati, 1 bowl of rice, sambar, curd, 2 vegetable curries, channa and 1 appalam.</p>
         </div>
 
+        <AudienceCategorySelector value={audience} onChange={setAudience} />
+
         <div className="filters">
-          <label><span>Delivering to</span><select value={city} onChange={(event) => changeCity(event.target.value)}>{cities.map((item) => <option key={item}>{item}</option>)}</select></label>
           <label><span>Onboarded school</span><select value={schoolId} onChange={(event) => setSchoolId(event.target.value)}>{citySchools.map((school) => <option value={school.id} key={school.id}>{school.name} · {school.area}</option>)}<option value="request">My school is not listed</option></select></label>
           <label><span>Student grade</span><select value={gradeBand} onChange={(event) => setGradeBand(event.target.value)}>{Object.entries(gradePlans).map(([id, item]) => <option value={id} key={id}>{item.label} standard</option>)}</select></label>
           <div className="diet-tabs" aria-label="Meal type"><button className="active">100% vegetarian</button></div>

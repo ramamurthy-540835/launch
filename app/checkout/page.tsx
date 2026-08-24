@@ -6,10 +6,10 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { cities as fallbackCities, gradePlans as fallbackGradePlans, meals as fallbackMeals, schools as fallbackSchools, type GradePlan, type Meal, type School } from "@/lib/meals";
 import { firebaseAuth, isFirebaseClientConfigured } from "@/lib/firebase-client";
-import { MARKET_PRICE, schoolMealPrice } from "@/lib/pricing";
+import { isMealAudience, mealAudiencePrice, type MealAudience } from "@/lib/pricing";
 
 type Cart = Record<string, number>;
-type CheckoutState = { cart: Cart; city: string; schoolId: string; gradeBand: string };
+type CheckoutState = { cart: Cart; city: string; schoolId: string; gradeBand: string; audience?: MealAudience };
 type RazorpayResult = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
 type RazorpayConstructor = new (options: Record<string, unknown>) => { open: () => void };
 
@@ -34,6 +34,7 @@ export default function CheckoutPage() {
   const [city, setCity] = useState(fallbackCities[0]);
   const [schoolId, setSchoolId] = useState(fallbackSchools[0]?.id || "request");
   const [gradeBand, setGradeBand] = useState(Object.keys(fallbackGradePlans)[0]);
+  const [audience, setAudience] = useState<MealAudience>("school");
   const [cart, setCart] = useState<Cart>({});
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<StudentSelection | null>(null);
@@ -51,6 +52,7 @@ export default function CheckoutPage() {
       setCity(parsed.city || fallbackCities[0]);
       setSchoolId(parsed.schoolId || fallbackSchools[0]?.id || "request");
       setGradeBand(parsed.gradeBand || Object.keys(fallbackGradePlans)[0]);
+      if (isMealAudience(parsed.audience)) setAudience(parsed.audience);
     } catch {
       setMessage("Your lunch bag could not be restored. Please choose meals again.");
     }
@@ -78,7 +80,7 @@ export default function CheckoutPage() {
   const selectedSchool = schools.find((school) => school.id === schoolId);
   const selectedMeals = meals.filter((meal) => cart[meal.id]);
   const itemCount = Object.values(cart).reduce((sum, count) => sum + count, 0);
-  const unitPrice = selectedSchool ? schoolMealPrice(selectedSchool) : MARKET_PRICE;
+  const unitPrice = mealAudiencePrice(audience);
   const subtotal = useMemo(
     () => selectedMeals.reduce((sum, meal) => sum + unitPrice * (cart[meal.id] || 0), 0),
     [cart, selectedMeals, unitPrice],
@@ -116,6 +118,7 @@ export default function CheckoutPage() {
           parentPhone: verifiedPhone || form.get("parentPhone"),
           city,
           gradeBand,
+          audience,
           items,
           freeMeals,
         }),

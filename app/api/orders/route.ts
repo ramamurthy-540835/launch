@@ -6,7 +6,7 @@ import { ParentAuthError, verifyParent } from "@/lib/firebase-admin";
 import { createPaymentOrder, isRazorpayConfigured, paymentCheckoutDetails } from "@/lib/razorpay";
 import { enforceRateLimit, RateLimitError } from "@/lib/hardening";
 import { logError, logWarning, requestId } from "@/lib/logging";
-import { assertFreeMealOrderCaps, resolvePriceTier, schoolMealPrice, type FreeMealType } from "@/lib/pricing";
+import { assertFreeMealOrderCaps, isMealAudience, mealAudiencePrice, resolvePriceTier, type FreeMealType } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
@@ -17,6 +17,7 @@ type IncomingOrder = {
   parentPhone?: unknown;
   city?: unknown;
   gradeBand?: unknown;
+  audience?: unknown;
   items?: unknown;
   freeMeals?: unknown;
 };
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
     }
     if (!catalog.cities.includes(body.city as string) || !(body.gradeBand as string in catalog.gradePlans)) {
       return NextResponse.json({ error: "Choose a supported city and grade." }, { status: 400 });
+    }
+    if (!isMealAudience(body.audience)) {
+      return NextResponse.json({ error: "Choose a valid lunch plan." }, { status: 400 });
     }
     const school = catalog.schools.find((entry) => entry.name === body.schoolName && entry.city === body.city);
     if (!school) {
@@ -84,7 +88,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Each meal may appear only once per order." }, { status: 400 });
     }
 
-    const unitPrice = schoolMealPrice(school);
+    const unitPrice = mealAudiencePrice(body.audience);
     const sanitizedItems = body.items.map((item) => {
       const candidate = item as { mealId: string; quantity: number };
       const meal = catalog.meals.find((entry) => entry.id === candidate.mealId)!;

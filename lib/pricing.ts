@@ -1,4 +1,20 @@
 export const MARKET_PRICE = 39;
+export const MEAL_AUDIENCE_PRICES = {
+  senior: 29,
+  school: 39,
+  college: 49,
+  working: 59,
+} as const;
+
+export type MealAudience = keyof typeof MEAL_AUDIENCE_PRICES;
+
+export function isMealAudience(value: unknown): value is MealAudience {
+  return typeof value === "string" && value in MEAL_AUDIENCE_PRICES;
+}
+
+export function mealAudiencePrice(audience: MealAudience) {
+  return MEAL_AUDIENCE_PRICES[audience];
+}
 export const SPONSORED_PRICE = 39;
 export const FREE_MEALS_DAILY_CAP = 25;
 export const FREE_MEALS_PER_TYPE_ORDER_CAP = 2;
