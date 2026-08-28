@@ -6,7 +6,7 @@ import { audienceTypes, marketingCities, marketingGeography, type MarketingCity,
 import {
   activityDirections, activityOutcomeLabels, activityOutcomes, activityTypeLabels, activityTypes,
   buildMarketingSeeds, createId, eventStatusLabels, eventStatuses, eventTypeLabels, eventTypes,
-  audienceToInstitutionType, canonicalInstitutionId, dedupeInstitutions, outcomeToLeadStage,
+  audienceToInstitutionType, canonicalInstitutionId, dedupeInstitutions, normalizeMarketingEventRecord, outcomeToLeadStage,
   type MarketingEvent, type MarketingEventStatus, type MarketingEventType, type OutreachActivity, type OutreachActivityType, type OutreachOutcome,
 } from "@/lib/marketing-events";
 import styles from "./MarketingEvents.module.css";
@@ -150,6 +150,7 @@ export default function MarketingEvents({ leads, events, activities, onEventsCha
 }
 
 function EventCard({ event, leads, activities, onOutreach, onStatus, onEdit, onDelete }: { event: MarketingEvent; leads: Map<string, PipelineLead>; activities: OutreachActivity[]; onOutreach: (eventId: string, leadId?: string) => void; onStatus: (event: MarketingEvent, status: MarketingEventStatus) => void; onEdit: (event: MarketingEvent) => void; onDelete: (event: MarketingEvent) => void }) {
+  event = normalizeMarketingEventRecord(event, [...leads.values()]);
   const eventOutreach = activities.filter((activity) => activity.linkedEventId === event.eventId);
   return <article className={styles.eventCard}><div className={styles.eventCardTop}><span>{eventTypeLabels[event.eventType]}</span><select className={styles[event.status.toLowerCase()]} value={event.status} onChange={(change) => onStatus(event, change.target.value as MarketingEventStatus)}>{eventStatuses.map((status) => <option value={status} key={status}>{eventStatusLabels[status]}</option>)}</select></div><h3>{event.title}</h3><p><b>{pretty(event.scheduledDate)}</b> · {event.scheduledTimeStart}–{event.scheduledTimeEnd}</p><p>{event.venue}</p><small>{event.city} · {event.area} · {event.ownerName}</small><div className={styles.beneficiarySummary}>{Object.entries(audienceTypes).map(([audience, item]) => <span key={audience}>{item.label}: <b>{event.institutions.filter((beneficiary) => beneficiary.institutionType === audience).length}</b></span>)}</div><footer><span className={cardStyles.leadPill}>{event.institutions.length} mapped</span><span className={cardStyles.leadPill}>{eventOutreach.length} outreach touch{eventOutreach.length === 1 ? "" : "es"}</span>{event.institutions.slice(0, 3).map((institution) => <span className={cardStyles.leadPill} key={`${institution.institutionType}:${institution.institutionId}`}>{institution.name || leads.get(institution.institutionId)?.name || institution.institutionId} ({audienceTypes[institution.institutionType].label})</span>)}<div className={cardStyles.actions}><button onClick={() => onOutreach(event.eventId)}>Log outreach</button><button onClick={() => onEdit(event)}>Map / Edit</button><button onClick={() => onDelete(event)}>Delete</button></div></footer></article>;
 }
