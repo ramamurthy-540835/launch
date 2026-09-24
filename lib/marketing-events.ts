@@ -6,7 +6,9 @@ export const activityTypes = ["CALL", "EMAIL", "WHATSAPP", "SMS", "IN_PERSON_VIS
 export const activityDirections = ["OUTBOUND", "INBOUND"] as const;
 export const activityOutcomes = ["NO_ANSWER", "FOLLOW_UP_NEEDED", "INTERESTED", "NOT_INTERESTED", "MEETING_SCHEDULED", "CONVERTED"] as const;
 
-export type MarketingEventType = (typeof eventTypes)[number];
+// New events store a deterministic marketing_event_catalog ID. Legacy values
+// remain readable so existing scheduled events continue to work.
+export type MarketingEventType = string;
 export type MarketingEventStatus = (typeof eventStatuses)[number];
 export type OutreachActivityType = (typeof activityTypes)[number];
 export type OutreachDirection = (typeof activityDirections)[number];
@@ -64,7 +66,7 @@ export type OutreachActivity = {
 export const marketingEventsStorageKey = "lunchbox-marketing-events-v1";
 export const outreachActivitiesStorageKey = "lunchbox-outreach-activities-v1";
 
-export const eventTypeLabels: Record<MarketingEventType, string> = {
+export const eventTypeLabels: Record<string, string> = {
   TASTING_DAY: "Tasting day", PTA_STALL: "PTA stall", CAMPUS_SAMPLING: "Campus sampling",
   COMMUNITY_TALK: "Community talk", FRANCHISE_LAUNCH: "Franchise launch", OTHER: "Other",
 };

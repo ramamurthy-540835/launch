@@ -10,6 +10,7 @@ import {
   type MarketingEventType,
 } from "@/lib/marketing-events";
 import { marketingCities, type MarketingCity } from "@/lib/marketing";
+import { marketingEventCatalog } from "@/lib/marketing-event-catalog";
 
 const projectId = process.env.GCP_PROJECT_ID;
 const datasetId = process.env.BIGQUERY_DATASET || "school_lunch";
@@ -67,7 +68,8 @@ export function validateMarketingEventPayload(value: unknown): MarketingEventVal
   const eventId = typeof record.eventId === "string" ? record.eventId.trim() : "";
   if (!eventId || eventId.length > 300) errors.push("eventId is required and must be 300 characters or fewer.");
   if (!record.title?.trim()) errors.push("title is required.");
-  if (!eventTypes.includes(record.eventType as MarketingEventType)) errors.push("eventType is not supported.");
+  const supportedEventTypes = new Set<string>([...eventTypes, ...marketingEventCatalog.map((item) => item.eventCatalogId)]);
+  if (!supportedEventTypes.has(record.eventType || "")) errors.push("eventType must be a valid event catalog ID.");
   if (!marketingCities.includes(record.city as MarketingCity)) errors.push("city is not supported.");
   if (!eventStatuses.includes(record.status as MarketingEventStatus)) errors.push("status is not supported.");
   if (!record.scheduledDate || !/^\d{4}-\d{2}-\d{2}$/.test(record.scheduledDate)) errors.push("scheduledDate must use YYYY-MM-DD.");

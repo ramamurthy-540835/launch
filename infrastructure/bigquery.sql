@@ -103,6 +103,22 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_event_institu
 PARTITION BY DATE(created_at)
 CLUSTER BY event_id, institution_type, institution_id;
 
+-- Reusable school and college event catalogue. Each selectable sub-event has
+-- a deterministic unique ID, so this seed can safely be rerun.
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT_ID.school_lunch.marketing_event_catalog` (
+  event_catalog_id STRING NOT NULL,
+  category_id STRING NOT NULL,
+  category_name STRING NOT NULL,
+  subcategory_name STRING,
+  event_name STRING NOT NULL,
+  audience_levels ARRAY<STRING>,
+  is_active BOOL NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY category_id, is_active, event_catalog_id;
+
 MERGE `YOUR_PROJECT_ID.school_lunch.marketing_event_institutions` AS target
 USING (
   SELECT DISTINCT
@@ -323,4 +339,3 @@ SELECT
   SUM(free_meals) >= 25 AS cap_reached
 FROM `YOUR_PROJECT_ID.school_lunch.free_meal_summary`
 GROUP BY kitchen_id, service_date;
-

@@ -74,7 +74,7 @@ Run `npm test` for the launch-critical unit suite. Cloud Run liveness can use `/
 ## Configure Google Cloud
 
 1. Create a private bucket in `asia-south1` and enable uniform bucket-level access.
-2. Replace `YOUR_PROJECT_ID` in `infrastructure/bigquery.sql`, then run it in BigQuery. The script is safe to rerun and creates `marketing_event_institutions`, then backfills it from legacy `marketing_events.linked_lead_ids` only when a matching `marketing_locations` school or college exists.
+2. Replace `YOUR_PROJECT_ID` in `infrastructure/bigquery.sql`, then run it in BigQuery. The script is safe to rerun and creates `marketing_event_institutions`, then backfills it from legacy `marketing_events.linked_lead_ids` only when a matching `marketing_locations` school or college exists. Run `infrastructure/marketing-event-catalog-seed.sql` immediately afterward (also replacing `YOUR_PROJECT_ID`) to seed the searchable school/college activity catalogue. Its `MERGE` is idempotent; rerunning it updates existing catalogue rows without duplicates. The seed is generated from `lib/marketing-event-catalog.ts` with `node scripts/generate-marketing-event-catalog-seed.cjs`.
 3. Replace `YOUR_PROJECT_ID` in `infrastructure/seed.sql` and run it to load the pilot cities, kitchens, schools and delivery routes. The `MERGE` statements are safe to rerun. The capacity and cutoff values are placeholders and must be approved before launch.
 4. Create a Firestore Native database in `asia-south1`; use the default database or set `FIRESTORE_DATABASE_ID`.
 5. Enable Firebase Phone authentication, register the production domain, configure permitted SMS regions, and create a Firebase Web app.
